@@ -1,0 +1,795 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>KEY TO KOCHI | Premium Rental Homes, Apartments & Flats in Kochi, Kerala</title>
+  <meta name="description" content="Discover verified luxury homes, apartments, and flats for rent across Kochi. Browse Kakkanad, Edappally, Panampilly Nagar, Marine Drive and more with KEY TO KOCHI." />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@500;600;700;800&family=Outfit:wght@300;400;500;600;700;800&family=Plus+Jakarta+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/src/style.css" />
+</head>
+<body class="dark-theme">
+  <!-- Public Website Wrapper -->
+  <div id="public-app-root">
+    <!-- Sticky Navigation -->
+    <header class="site-header" id="site-header">
+      <div class="nav-container">
+        <a href="#hero" class="brand-logo" id="nav-brand-logo">
+          <div class="brand-key-icon">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+              <circle cx="7.5" cy="15.5" r="5.5"/>
+              <path d="m21 2-9.6 9.6"/>
+              <path d="m15.5 7.5 3 3L22 7l-3-3"/>
+            </svg>
+          </div>
+          <div class="brand-names">
+            <span class="brand-title">KEY TO KOCHI</span>
+            <span class="brand-tagline">LUXURY RENTALS</span>
+          </div>
+        </a>
+
+        <!-- Center Menu -->
+        <nav class="nav-links">
+          <a href="#hero" class="nav-link active">Home</a>
+          <a href="#lifestyle-section" class="nav-link">Lifestyle</a>
+          <a href="#search-section" class="nav-link">Properties</a>
+          <a href="#locations-section" class="nav-link">Locations</a>
+          <a href="#bhk-section" class="nav-link">Browse BHK</a>
+          <a href="#why-us-section" class="nav-link">About</a>
+          <a href="javascript:void(0)" class="nav-link" id="nav-list-property">List Property</a>
+          <a href="#contact-section" class="nav-link">Contact</a>
+        </nav>
+
+        <!-- Right Action Buttons -->
+        <div class="nav-actions">
+          <a href="#search-section" class="btn-gold-nav" id="btn-nav-find-home">Find a Home</a>
+          <button class="btn-admin-nav" id="btn-nav-admin-login">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect width="18" height="11" x="3" y="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+            Admin Portal
+          </button>
+        </div>
+
+        <!-- Mobile Menu Toggle -->
+        <button class="mobile-toggle-btn" id="mobile-toggle-btn" aria-label="Toggle navigation">
+          <span></span><span></span><span></span>
+        </button>
+      </div>
+
+      <!-- Mobile Dropdown -->
+      <div class="mobile-menu-drawer" id="mobile-menu-drawer">
+        <a href="#hero" class="mobile-nav-link">Home</a>
+        <a href="#lifestyle-section" class="mobile-nav-link">Lifestyle (Tenant Types)</a>
+        <a href="#search-section" class="mobile-nav-link">Properties</a>
+        <a href="#locations-section" class="mobile-nav-link">Locations</a>
+        <a href="#bhk-section" class="mobile-nav-link">Browse BHK</a>
+        <a href="#why-us-section" class="mobile-nav-link">About</a>
+        <a href="javascript:void(0)" class="mobile-nav-link" id="mobile-nav-list-prop">List Property</a>
+        <a href="#contact-section" class="mobile-nav-link">Contact</a>
+        <div class="mobile-menu-actions">
+          <a href="#search-section" class="btn-gold-full">Find a Home</a>
+          <button class="btn-admin-full" id="mobile-btn-admin-login">Admin Portal</button>
+        </div>
+      </div>
+    </header>
+
+    <!-- Hero Section with 3D Background -->
+    <section class="hero-section" id="hero">
+      <!-- Three.js Canvas Container -->
+      <div class="hero-3d-container" id="hero-canvas-container"></div>
+      
+      <!-- Gradient Overlays for High Legibility -->
+      <div class="hero-radial-vignette"></div>
+      <div class="hero-bottom-gradient"></div>
+
+      <div class="hero-content-wrapper">
+        <div class="hero-badge-pill">
+          <span class="gold-sparkle">✦</span>
+          <span>Kochi's Premier Verified Rental Ecosystem</span>
+        </div>
+
+        <h1 class="hero-headline">
+          Find Your Perfect <br />
+          <span class="gold-gradient-text">Home in Kochi.</span>
+        </h1>
+
+        <p class="hero-subtitle">
+          “Your Key to Finding a Better Home in Kochi.” Discover handpicked, verified homes, apartments, and flats for rent across Cochin's most desirable avenues.
+        </p>
+
+        <!-- Quick Hero Search Box -->
+        <div class="hero-search-glass-card">
+          <div class="search-fields-grid">
+            <!-- Location -->
+            <div class="search-field">
+              <label><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"/><circle cx="12" cy="10" r="3"/></svg> Location</label>
+              <select id="hero-filter-loc">
+                <option value="All">All Kochi Locations</option>
+                <!-- Populated dynamically -->
+              </select>
+            </div>
+
+            <!-- Property Type -->
+            <div class="search-field">
+              <label><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg> Property Type</label>
+              <select id="hero-filter-type">
+                <option value="All">All Types</option>
+                <option value="Home">Home / Villa</option>
+                <option value="Apartment">Apartment</option>
+                <option value="Flat">Flat</option>
+              </select>
+            </div>
+
+            <!-- BHK -->
+            <div class="search-field">
+              <label><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect width="18" height="18" x="3" y="3" rx="2"/></svg> BHK Category</label>
+              <select id="hero-filter-bhk">
+                <option value="All">All BHK</option>
+                <option value="1 BHK">1 BHK</option>
+                <option value="2 BHK">2 BHK</option>
+                <option value="3 BHK">3 BHK</option>
+                <option value="4 BHK">4 BHK</option>
+              </select>
+            </div>
+
+            <!-- Furnishing -->
+            <div class="search-field">
+              <label><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 17h20M2 12h20M7 7h10"/></svg> Furnishing</label>
+              <select id="hero-filter-furnish">
+                <option value="All">All Furnishings</option>
+                <option value="Fully Furnished">Fully Furnished</option>
+                <option value="Semi Furnished">Semi Furnished</option>
+                <option value="Unfurnished">Unfurnished</option>
+              </select>
+            </div>
+
+            <!-- Rent Range -->
+            <div class="search-field">
+              <label><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg> Max Budget</label>
+              <select id="hero-filter-max-rent">
+                <option value="All">Any Budget</option>
+                <option value="20000">Up to ₹20,000</option>
+                <option value="35000">Up to ₹35,000</option>
+                <option value="50000">Up to ₹50,000</option>
+                <option value="100000">Up to ₹1,00,000</option>
+              </select>
+            </div>
+
+            <!-- Action Button -->
+            <div class="search-action-col">
+              <button class="btn-hero-search" id="btn-hero-search">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
+                <span>Search Properties</span>
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Animated Statistics Counters -->
+        <div class="hero-stats-row">
+          <div class="stat-counter-item">
+            <span class="stat-number" data-target="500">500+</span>
+            <span class="stat-caption">Verified Properties</span>
+          </div>
+          <div class="stat-counter-divider"></div>
+          <div class="stat-counter-item">
+            <span class="stat-number" data-target="20">20+</span>
+            <span class="stat-caption">Prime Kochi Locations</span>
+          </div>
+          <div class="stat-counter-divider"></div>
+          <div class="stat-counter-item">
+            <span class="stat-number" data-target="1000">1000+</span>
+            <span class="stat-caption">Delighted Tenants</span>
+          </div>
+          <div class="stat-counter-divider"></div>
+          <div class="stat-counter-item">
+            <span class="stat-number">0%</span>
+            <span class="stat-caption">Hidden Brokerage</span>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Featured Properties Section -->
+    <section class="section-container featured-section" id="featured-section">
+      <div class="section-header-flex">
+        <div>
+          <span class="section-tag-gold">HANDPICKED CURATION</span>
+          <h2 class="section-title">Featured Luxury Residencies</h2>
+          <p class="section-subtitle">Specially inspected high-demand apartments and villas in prime Cochin hubs.</p>
+        </div>
+        <a href="#search-section" class="btn-outline-gold">View Full Inventory &rarr;</a>
+      </div>
+
+      <div class="featured-cards-grid" id="featured-cards-container">
+        <!-- Rendered dynamically -->
+      </div>
+    </section>
+
+    <!-- Lifestyle / Tenant Suitability Section -->
+    <section class="section-container lifestyle-section" id="lifestyle-section">
+      <div class="section-header-centered">
+        <span class="section-tag-gold">TENANT CATEGORIES</span>
+        <h2 class="section-title">Find a Home That Fits Your Lifestyle</h2>
+        <p class="section-subtitle">Dedicated rental options tailored for every stage of living in Cochin.</p>
+      </div>
+
+      <div class="lifestyle-cards-grid">
+        <!-- Family Card -->
+        <div class="lifestyle-card" data-tenant="Family">
+          <div class="lifestyle-card-icon-wrap">
+            <span class="lifestyle-card-emoji">👨‍👩‍👧</span>
+            <span class="lifestyle-badge">Family Friendly</span>
+          </div>
+          <h3 class="lifestyle-card-title">Family</h3>
+          <p class="lifestyle-card-quote">“Comfortable homes for your family.”</p>
+          <ul class="lifestyle-features-list">
+            <li><span class="check-bullet">✓</span> Spacious living areas & multiple bedrooms</li>
+            <li><span class="check-bullet">✓</span> Family-oriented, tranquil neighborhoods</li>
+            <li><span class="check-bullet">✓</span> Dedicated car parking availability</li>
+            <li><span class="check-bullet">✓</span> Nearby reputed schools & multispeciality hospitals</li>
+          </ul>
+          <div class="lifestyle-card-cta">
+            <button class="btn-lifestyle-action" data-tenant="Family" id="btn-lifestyle-family">
+              View Family Homes &rarr;
+            </button>
+          </div>
+        </div>
+
+        <!-- Bachelors Card -->
+        <div class="lifestyle-card" data-tenant="Bachelors">
+          <div class="lifestyle-card-icon-wrap">
+            <span class="lifestyle-card-emoji">👤</span>
+            <span class="lifestyle-badge">Bachelor Friendly</span>
+          </div>
+          <h3 class="lifestyle-card-title">Bachelors</h3>
+          <p class="lifestyle-card-quote">“Convenient rentals for working professionals and students.”</p>
+          <ul class="lifestyle-features-list">
+            <li><span class="check-bullet">✓</span> Suitable for working professionals & students</li>
+            <li><span class="check-bullet">✓</span> Easy access to metro & public transport</li>
+            <li><span class="check-bullet">✓</span> Close to Infopark, SmartCity & colleges</li>
+            <li><span class="check-bullet">✓</span> High-speed connectivity & flexible lease terms</li>
+          </ul>
+          <div class="lifestyle-card-cta">
+            <button class="btn-lifestyle-action" data-tenant="Bachelors" id="btn-lifestyle-bachelors">
+              View Bachelor Homes &rarr;
+            </button>
+          </div>
+        </div>
+
+        <!-- Couples Card -->
+        <div class="lifestyle-card" data-tenant="Couples">
+          <div class="lifestyle-card-icon-wrap">
+            <span class="lifestyle-card-emoji">❤️</span>
+            <span class="lifestyle-badge">Couple Friendly</span>
+          </div>
+          <h3 class="lifestyle-card-title">Couples</h3>
+          <p class="lifestyle-card-quote">“Comfortable and private homes for couples.”</p>
+          <ul class="lifestyle-features-list">
+            <li><span class="check-bullet">✓</span> Suitable for newly-wed & working couples</li>
+            <li><span class="check-bullet">✓</span> Privacy-focused gated properties</li>
+            <li><span class="check-bullet">✓</span> Convenient prime residential locations</li>
+            <li><span class="check-bullet">✓</span> Modern modular kitchens & scenic balconies</li>
+          </ul>
+          <div class="lifestyle-card-cta">
+            <button class="btn-lifestyle-action" data-tenant="Couples" id="btn-lifestyle-couples">
+              View Couple Homes &rarr;
+            </button>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Main Property Search & Listing Section -->
+    <section class="section-container search-listing-section" id="search-section">
+      <div class="section-header-centered">
+        <span class="section-tag-gold">EXPLORE RENTALS</span>
+        <h2 class="section-title">Verified Properties For Rent in Kochi</h2>
+        <p class="section-subtitle">Real-time updated inventory. Direct lease agreements with verified owners.</p>
+      </div>
+
+      <!-- Advanced Filters Bar -->
+      <div class="advanced-filter-card">
+        <div class="filter-top-row">
+          <!-- Text Search -->
+          <div class="filter-search-box">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
+            <input type="text" id="live-search-query" placeholder="Search by title, location or address..." />
+          </div>
+
+          <!-- Quick Dropdowns -->
+          <div class="filter-dropdowns-row">
+            <select id="filter-location" class="custom-select">
+              <option value="All">All Locations</option>
+              <!-- Filled dynamically -->
+            </select>
+
+            <select id="filter-suitable-for" class="custom-select">
+              <option value="All">Suitable For: All</option>
+              <option value="Family">👨‍👩‍👧 Family</option>
+              <option value="Bachelors">👤 Bachelors</option>
+              <option value="Couples">❤️ Couples</option>
+            </select>
+
+            <select id="filter-type" class="custom-select">
+              <option value="All">All Types</option>
+              <option value="Home">Home</option>
+              <option value="Apartment">Apartment</option>
+              <option value="Flat">Flat</option>
+            </select>
+
+            <select id="filter-bhk" class="custom-select">
+              <option value="All">All BHK</option>
+              <option value="1 BHK">1 BHK</option>
+              <option value="2 BHK">2 BHK</option>
+              <option value="3 BHK">3 BHK</option>
+              <option value="4 BHK">4 BHK</option>
+            </select>
+
+            <select id="filter-furnishing" class="custom-select">
+              <option value="All">All Furnishings</option>
+              <option value="Fully Furnished">Fully Furnished</option>
+              <option value="Semi Furnished">Semi Furnished</option>
+              <option value="Unfurnished">Unfurnished</option>
+            </select>
+
+            <select id="filter-availability" class="custom-select">
+              <option value="All">All Availability</option>
+              <option value="Available">Available Only</option>
+              <option value="Rented">Rented</option>
+            </select>
+
+            <select id="filter-sort" class="custom-select">
+              <option value="featured">Sort: Featured First</option>
+              <option value="price-asc">Rent: Low to High</option>
+              <option value="price-desc">Rent: High to Low</option>
+              <option value="newest">Newest First</option>
+            </select>
+          </div>
+        </div>
+
+        <!-- Secondary Filter Drawer Toggle -->
+        <div class="filter-secondary-toggle-bar">
+          <button class="btn-toggle-amenities" id="btn-toggle-amenities">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="4" y1="21" x2="4" y2="14"/><line x1="4" y1="10" x2="4" y2="3"/><line x1="12" y1="21" x2="12" y2="12"/><line x1="12" y1="8" x2="12" y2="3"/><line x1="20" y1="21" x2="20" y2="16"/><line x1="20" y1="12" x2="20" y2="3"/><line x1="1" y1="14" x2="7" y2="14"/><line x1="9" y1="8" x2="15" y2="8"/><line x1="17" y1="16" x2="23" y2="16"/></svg>
+            <span>Filter by Amenities & Budget (Expand)</span>
+            <span class="chevron-arrow">▼</span>
+          </button>
+
+          <button class="btn-reset-filters" id="btn-reset-filters">
+            Reset All Filters
+          </button>
+        </div>
+
+        <!-- Collapsible Amenities & Price Filter Drawer -->
+        <div class="filter-amenities-drawer" id="filter-amenities-drawer" style="display: none;">
+          <div class="drawer-grid">
+            <div class="drawer-col">
+              <label class="drawer-label">Budget Range (Monthly Rent):</label>
+              <div class="budget-inputs-row">
+                <input type="number" id="filter-min-rent" placeholder="Min ₹" min="0" step="1000" />
+                <span class="to-text">to</span>
+                <input type="number" id="filter-max-rent" placeholder="Max ₹" min="0" step="1000" />
+              </div>
+            </div>
+
+            <div class="drawer-col">
+              <label class="drawer-label">Min Size (sq.ft):</label>
+              <input type="number" id="filter-min-size" placeholder="e.g. 1000 sq.ft" min="0" step="100" />
+            </div>
+
+            <div class="drawer-col full-width-col">
+              <label class="drawer-label">Required Amenities:</label>
+              <div class="amenities-tag-selector" id="amenities-tag-selector">
+                <!-- Checkboxes for 13 amenities -->
+                <label class="amenity-chip"><input type="checkbox" value="Parking" /> <span>Parking</span></label>
+                <label class="amenity-chip"><input type="checkbox" value="Wi-Fi" /> <span>Wi-Fi</span></label>
+                <label class="amenity-chip"><input type="checkbox" value="AC" /> <span>AC</span></label>
+                <label class="amenity-chip"><input type="checkbox" value="Lift" /> <span>Lift</span></label>
+                <label class="amenity-chip"><input type="checkbox" value="Security" /> <span>Security</span></label>
+                <label class="amenity-chip"><input type="checkbox" value="Water Supply" /> <span>Water Supply</span></label>
+                <label class="amenity-chip"><input type="checkbox" value="Power Backup" /> <span>Power Backup</span></label>
+                <label class="amenity-chip"><input type="checkbox" value="Attached Bathroom" /> <span>Attached Bathroom</span></label>
+                <label class="amenity-chip"><input type="checkbox" value="Kitchen" /> <span>Kitchen</span></label>
+                <label class="amenity-chip"><input type="checkbox" value="Balcony" /> <span>Balcony</span></label>
+                <label class="amenity-chip"><input type="checkbox" value="Gym" /> <span>Gym</span></label>
+                <label class="amenity-chip"><input type="checkbox" value="Swimming Pool" /> <span>Swimming Pool</span></label>
+                <label class="amenity-chip"><input type="checkbox" value="Pet Friendly" /> <span>Pet Friendly</span></label>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Live Count Ribbon -->
+      <div class="results-meta-ribbon">
+        <div id="results-count-text">
+          Showing <strong>10</strong> verified properties in Kochi
+        </div>
+        <div class="active-filter-chips" id="active-filter-chips"></div>
+      </div>
+
+      <!-- Property Cards Grid -->
+      <div class="properties-grid" id="properties-cards-container">
+        <!-- Rendered dynamically -->
+      </div>
+    </section>
+
+    <!-- Popular Locations Section -->
+    <section class="section-container locations-section" id="locations-section">
+      <div class="section-header-centered">
+        <span class="section-tag-gold">EXPLORE BY NEIGHBORHOOD</span>
+        <h2 class="section-title">Popular Locations in Kochi</h2>
+        <p class="section-subtitle">Click any neighborhood to view curated homes in that specific locality.</p>
+      </div>
+
+      <div class="locations-carousel-grid" id="popular-locations-container">
+        <!-- Rendered dynamically from store -->
+      </div>
+    </section>
+
+    <!-- Browse by BHK Section -->
+    <section class="section-container bhk-section" id="bhk-section">
+      <div class="section-header-centered">
+        <span class="section-tag-gold">TAILORED CONFIGURATIONS</span>
+        <h2 class="section-title">Browse by BHK Category</h2>
+        <p class="section-subtitle">From compact bachelor suites to sprawling multi-generational luxury villas.</p>
+      </div>
+
+      <div class="bhk-cards-grid">
+        <div class="bhk-card" data-bhk="1 BHK">
+          <div class="bhk-card-badge">Individual & Couples</div>
+          <div class="bhk-number">1 BHK</div>
+          <h3 class="bhk-card-title">Compact & Tech-Ready</h3>
+          <p class="bhk-card-desc">“Perfect for individuals and couples seeking vibrant living near Kochi Infopark and metro nodes.”</p>
+          <div class="bhk-card-footer">
+            <span class="bhk-explore-link">Browse 1 BHK Units &rarr;</span>
+          </div>
+        </div>
+
+        <div class="bhk-card" data-bhk="2 BHK">
+          <div class="bhk-card-badge">Most Popular</div>
+          <div class="bhk-number">2 BHK</div>
+          <h3 class="bhk-card-title">Comfortable Family Living</h3>
+          <p class="bhk-card-desc">“Ideal for small families needing balance, spacious balconies, and proximity to leading schools & retail.”</p>
+          <div class="bhk-card-footer">
+            <span class="bhk-explore-link">Browse 2 BHK Units &rarr;</span>
+          </div>
+        </div>
+
+        <div class="bhk-card" data-bhk="3 BHK">
+          <div class="bhk-card-badge">Spacious Luxury</div>
+          <div class="bhk-number">3 BHK</div>
+          <h3 class="bhk-card-title">Spacious Family Living</h3>
+          <p class="bhk-card-desc">“Spacious family living with modern en-suite baths, maid quarters, and premium clubhouse amenities.”</p>
+          <div class="bhk-card-footer">
+            <span class="bhk-explore-link">Browse 3 BHK Units &rarr;</span>
+          </div>
+        </div>
+
+        <div class="bhk-card" data-bhk="4 BHK">
+          <div class="bhk-card-badge">Ultra Premium</div>
+          <div class="bhk-number">4 BHK</div>
+          <h3 class="bhk-card-title">Grand Bungalows & Penthouses</h3>
+          <p class="bhk-card-desc">“Premium large homes, waterfront sky villas, and signature bungalows in prime Panampilly Nagar & Kadavanthra.”</p>
+          <div class="bhk-card-footer">
+            <span class="bhk-explore-link">Browse 4 BHK Units &rarr;</span>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Browse by Furnishing Section -->
+    <section class="section-container furnishing-section" id="furnishing-section">
+      <div class="section-header-centered">
+        <span class="section-tag-gold">FURNISHING PREFERENCES</span>
+        <h2 class="section-title">Browse by Furnishing Status</h2>
+        <p class="section-subtitle">Tailored to whether you want turnkey move-in ease or your own personalized furniture.</p>
+      </div>
+
+      <div class="furnishing-cards-grid">
+        <div class="furnishing-card" data-furnishing="Fully Furnished">
+          <div class="furnish-icon-badge">
+            <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#d4af37" stroke-width="2"><path d="M2 17h20M2 12h20M7 7h10"/></svg>
+          </div>
+          <h3>Fully Furnished</h3>
+          <p class="furnish-subtitle">Move-in ready homes.</p>
+          <p class="furnish-desc">Equipped with designer sofa sets, double beds, AC, LED TVs, modular kitchen, and washing appliances. Just bring your luggage.</p>
+          <div class="furnish-card-cta">Explore Move-In Ready &rarr;</div>
+        </div>
+
+        <div class="furnishing-card" data-furnishing="Semi Furnished">
+          <div class="furnish-icon-badge">
+            <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#d4af37" stroke-width="2"><path d="M4 21V5a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v16M2 21h20"/></svg>
+          </div>
+          <h3>Semi Furnished</h3>
+          <p class="furnish-subtitle">Comfortable homes with essential furniture.</p>
+          <p class="furnish-desc">Fitted with custom wardrobes, modular kitchen cabinets, high-grade bathroom fixtures, and curtain rods. Bring your own mattresses and sofas.</p>
+          <div class="furnish-card-cta">Explore Semi Furnished &rarr;</div>
+        </div>
+
+        <div class="furnishing-card" data-furnishing="Unfurnished">
+          <div class="furnish-icon-badge">
+            <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#d4af37" stroke-width="2"><rect width="18" height="18" x="3" y="3" rx="2"/></svg>
+          </div>
+          <h3>Unfurnished</h3>
+          <p class="furnish-subtitle">Flexible spaces you can customize.</p>
+          <p class="furnish-desc">Spacious, immaculate canvases waiting for your bespoke furniture arrangement. Maximizes rental savings and long-term residency freedom.</p>
+          <div class="furnish-card-cta">Explore Unfurnished &rarr;</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Why Key to Kochi Section -->
+    <section class="section-container why-us-section" id="why-us-section">
+      <div class="section-header-centered">
+        <span class="section-tag-gold">WHY CHOOSE US</span>
+        <h2 class="section-title">The Key to Kochi Advantage</h2>
+        <p class="section-subtitle">We bridge discerning tenants and genuine property owners with complete transparency.</p>
+      </div>
+
+      <div class="features-grid-4">
+        <div class="feature-card">
+          <div class="feature-icon gold">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+          </div>
+          <h3>100% Verified Properties</h3>
+          <p>Every apartment, villa, and flat is physically inspected and document-verified by our local Kochi field team.</p>
+        </div>
+
+        <div class="feature-card">
+          <div class="feature-icon emerald">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="m9 12 2 2 4-4"/></svg>
+          </div>
+          <h3>Zero Hidden Brokerage</h3>
+          <p>No inflated broker commissions or surprise platform surcharges. Clear transparent rental terms directly upfront.</p>
+        </div>
+
+        <div class="feature-card">
+          <div class="feature-icon blue">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+          </div>
+          <h3>Digital Legal Agreements</h3>
+          <p>Fast Kerala-registered rental agreements drafted seamlessly with transparent lock-in and security deposit terms.</p>
+        </div>
+
+        <div class="feature-card">
+          <div class="feature-icon gold">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/></svg>
+          </div>
+          <h3>Local 24/7 Kochi Concierge</h3>
+          <p>Assistance for move-in, utility connection (KSEB, KWA), broadband setup, and ongoing tenant liaison.</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- How It Works Section -->
+    <section class="section-container how-it-works-section" id="how-it-works">
+      <div class="section-header-centered">
+        <span class="section-tag-gold">EFFORTLESS JOURNEY</span>
+        <h2 class="section-title">How It Works</h2>
+        <p class="section-subtitle">Finding and moving into your next Kochi home takes just 3 simple steps.</p>
+      </div>
+
+      <div class="steps-grid-3">
+        <div class="step-card">
+          <div class="step-badge-number">01</div>
+          <h3>Explore & Filter</h3>
+          <p>Browse high-definition photos, verified BHK layouts, amenities, and accurate location tags across Kochi.</p>
+        </div>
+
+        <div class="step-card">
+          <div class="step-badge-number">02</div>
+          <h3>Schedule Physical Visit</h3>
+          <p>Book a private walk-through slot at your convenience. Meet our property manager on-site for immediate inspection.</p>
+        </div>
+
+        <div class="step-card">
+          <div class="step-badge-number">03</div>
+          <h3>Sign Lease & Move In</h3>
+          <p>Execute your digital rental agreement, complete secure security deposit transfer, and collect your keys!</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- List Your Property Banner / Section -->
+    <section class="section-container list-property-banner-section" id="list-property-cta">
+      <div class="list-prop-banner-card">
+        <div class="banner-text-side">
+          <span class="section-tag-gold">FOR PROPERTY OWNERS</span>
+          <h2>Own a Home or Flat in Kochi?</h2>
+          <p>List your rental property on KEY TO KOCHI and connect with high-credit corporate tenants, doctors, and IT professionals. 0% brokerage fees for owners.</p>
+          <div class="banner-features-row">
+            <span>✓ Fast 48-Hour Tenant Matching</span>
+            <span>✓ Rigorous Tenant Background Checks</span>
+            <span>✓ Complete Legal Documentation</span>
+          </div>
+          <button class="btn-gold-lg" id="btn-banner-list-property">
+            List Your Property Now &rarr;
+          </button>
+        </div>
+        <div class="banner-image-side">
+          <img src="https://images.unsplash.com/photo-1600585154340-be6161a56a0c?auto=format&fit=crop&w=800&q=80" alt="Luxury Kochi Living Room" />
+        </div>
+      </div>
+    </section>
+
+    <!-- Contact & Consultation Section -->
+    <section class="section-container contact-section" id="contact-section">
+      <div class="contact-card-glass">
+        <div class="contact-info-col">
+          <span class="section-tag-gold">GET IN TOUCH</span>
+          <h2>Speak to a Kochi Rental Advisor</h2>
+          <p>Need custom assistance finding a villa in Panampilly Nagar or an executive suite in Kakkanad? We are here to guide you.</p>
+
+          <div class="contact-details-list">
+            <div class="contact-detail-item">
+              <div class="contact-icon gold">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"/><circle cx="12" cy="10" r="3"/></svg>
+              </div>
+              <div>
+                <strong>Central Advisory Office</strong>
+                <p>Avenue 4, Main Promenade, Panampilly Nagar, Kochi, Kerala 682036</p>
+              </div>
+            </div>
+
+            <div class="contact-detail-item">
+              <div class="contact-icon gold">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/></svg>
+              </div>
+              <div>
+                <strong>Direct Telephone & WhatsApp</strong>
+                <p>+91 (0484) 231-9000 &bull; <a href="https://wa.me/919656959652?text=Hello%20Key%20to%20Kochi%2C%20I%20am%20interested%20in%20your%20rental%20properties.%20Please%20help%20me%20find%20a%20suitable%20property." target="_blank" rel="noopener noreferrer" style="color: #25D366; text-decoration: none; font-weight: 600;">+91 96569 59652 (WhatsApp)</a></p>
+              </div>
+            </div>
+
+            <div class="contact-detail-item">
+              <div class="contact-icon gold">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+              </div>
+              <div>
+                <strong>Email Inquiries</strong>
+                <p>rentals@keytokochi.com &bull; support@keytokochi.com</p>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="contact-form-col">
+          <form id="public-contact-form" class="contact-form-styled">
+            <h3>Send Us a Quick Message</h3>
+            <div class="form-field">
+              <label>Your Name *</label>
+              <input type="text" id="contact-name" required placeholder="Your full name" />
+            </div>
+            <div class="form-field">
+              <label>Phone Number *</label>
+              <input type="tel" id="contact-phone" required placeholder="+91 98..." />
+            </div>
+            <div class="form-field">
+              <label>Email Address *</label>
+              <input type="email" id="contact-email" required placeholder="your.email@example.com" />
+            </div>
+            <div class="form-field">
+              <label>Preferred Locality & Requirements</label>
+              <textarea id="contact-message" rows="3" placeholder="Tell us about desired BHK, budget, move-in timeframe..."></textarea>
+            </div>
+            <button type="submit" class="btn-gold-full">Send Message to Advisory Team</button>
+          </form>
+        </div>
+      </div>
+    </section>
+
+    <!-- Luxury Footer -->
+    <footer class="site-footer">
+      <div class="footer-container">
+        <div class="footer-top-grid">
+          <!-- Col 1: Brand -->
+          <div class="footer-brand-col">
+            <div class="brand-logo footer-logo">
+              <div class="brand-key-icon">
+                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><circle cx="7.5" cy="15.5" r="5.5"/><path d="m21 2-9.6 9.6"/><path d="m15.5 7.5 3 3L22 7l-3-3"/></svg>
+              </div>
+              <div class="brand-names">
+                <span class="brand-title">KEY TO KOCHI</span>
+                <span class="brand-tagline">LUXURY RENTALS</span>
+              </div>
+            </div>
+            <p class="footer-brand-desc">
+              “Your Key to Finding a Better Home in Kochi.” Kerala's premier specialized luxury rental platform for verified residences, flats and gated apartments.
+            </p>
+            <div class="footer-social-links">
+              <a href="#" aria-label="Instagram">IG</a>
+              <a href="#" aria-label="LinkedIn">IN</a>
+              <a href="#" aria-label="YouTube">YT</a>
+              <a href="#" aria-label="Facebook">FB</a>
+            </div>
+          </div>
+
+          <!-- Col 2: Quick Links -->
+          <div class="footer-links-col">
+            <h4>Quick Navigation</h4>
+            <ul>
+              <li><a href="#hero">Home</a></li>
+              <li><a href="#search-section">Browse Properties</a></li>
+              <li><a href="#locations-section">Kochi Locations</a></li>
+              <li><a href="#bhk-section">Browse by BHK</a></li>
+              <li><a href="#furnishing-section">Furnishing Types</a></li>
+              <li><a href="javascript:void(0)" id="footer-list-prop-link">List Your Property</a></li>
+            </ul>
+          </div>
+
+          <!-- Col 3: Popular Kochi Hubs -->
+          <div class="footer-links-col">
+            <h4>Kochi Neighborhoods</h4>
+            <ul>
+              <li><a href="javascript:void(0)" class="footer-loc-link" data-loc="Kakkanad">Kakkanad (Infopark)</a></li>
+              <li><a href="javascript:void(0)" class="footer-loc-link" data-loc="Edappally">Edappally (LuLu Mall)</a></li>
+              <li><a href="javascript:void(0)" class="footer-loc-link" data-loc="Panampilly Nagar">Panampilly Nagar</a></li>
+              <li><a href="javascript:void(0)" class="footer-loc-link" data-loc="Marine Drive">Marine Drive Promenade</a></li>
+              <li><a href="javascript:void(0)" class="footer-loc-link" data-loc="Vyttila">Vyttila Mobility Hub</a></li>
+              <li><a href="javascript:void(0)" class="footer-loc-link" data-loc="Fort Kochi">Fort Kochi Heritage</a></li>
+            </ul>
+          </div>
+
+          <!-- Col 4: Newsletter -->
+          <div class="footer-newsletter-col">
+            <h4>Exclusive Property Alerts</h4>
+            <p>Subscribe to receive curated new listings before they are made public.</p>
+            <form id="footer-newsletter-form" class="newsletter-form">
+              <input type="email" placeholder="Enter your email" required />
+              <button type="submit" class="btn-gold-sm">Subscribe</button>
+            </form>
+            <div class="footer-admin-link-box">
+              <span>Admin Personnel:</span>
+              <a href="javascript:void(0)" id="footer-admin-login-link">Admin Portal Login &rarr;</a>
+            </div>
+          </div>
+        </div>
+
+        <div class="footer-bottom-bar">
+          <p>&copy; 2026 KEY TO KOCHI. All rights reserved. Registered Real Estate Advisory, Kochi, Kerala.</p>
+          <div class="footer-legal-links">
+            <a href="#">Privacy Policy</a>
+            <a href="#">Terms of Lease</a>
+            <a href="#">Security Standards</a>
+          </div>
+        </div>
+      </div>
+    </footer>
+
+    <!-- Floating WhatsApp Contact Button (Public Site Only) -->
+    <aside class="floating-whatsapp-container" id="floating-whatsapp-btn" aria-label="WhatsApp Contact">
+      <a href="https://wa.me/919656959652?text=Hello%20Key%20to%20Kochi%2C%20I%20am%20interested%20in%20your%20rental%20properties.%20Please%20help%20me%20find%20a%20suitable%20property."
+         target="_blank"
+         rel="noopener noreferrer"
+         class="floating-whatsapp-btn"
+         title="Chat with us on WhatsApp"
+         id="btn-whatsapp-floating">
+        <span class="whatsapp-tooltip">Chat with us on WhatsApp</span>
+        <div class="whatsapp-icon-circle">
+          <svg width="34" height="34" viewBox="0 0 24 24" fill="#ffffff" aria-hidden="true">
+            <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/>
+          </svg>
+        </div>
+      </a>
+    </aside>
+  </div>
+
+  <!-- Admin Portal Full-Screen Overlay Root -->
+  <div id="admin-portal-container" class="admin-portal-root" style="display: none;"></div>
+
+  <!-- Dedicated Property Details Modal Root -->
+  <div id="property-modal-container"></div>
+
+  <!-- Generic Action Modals Root (Enquiry, Schedule Visit, Login, List Property) -->
+  <div id="action-modal-container"></div>
+
+  <!-- Global Toast Notifications Root -->
+  <div id="toast-container" class="toast-container"></div>
+
+  <!-- Main JavaScript Bundle -->
+  <script type="module" src="/src/main.js"></script>
+</body>
+</html>
