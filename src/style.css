@@ -4850,11 +4850,30 @@ button, input, select, textarea {
 .aln-toggle-pass:hover { color: #d4af37; }
 .aln-toggle-pass:focus-visible { outline: 2px solid rgba(212,175,55,0.4); outline-offset: 2px; }
 
-/* Forgot password row */
+/* Forgot password & Demo row */
 .aln-forgot-row {
   display: flex;
-  justify-content: flex-end;
+  justify-content: space-between;
+  align-items: center;
   margin-top: -6px;
+}
+.aln-demo-btn {
+  background: none;
+  border: none;
+  color: rgba(212,175,55,0.8);
+  font-size: 0.77rem;
+  cursor: pointer;
+  padding: 2px 0;
+  letter-spacing: 0.02em;
+  font-family: var(--font-main, sans-serif);
+  transition: all 0.18s;
+  text-decoration: underline;
+  text-decoration-color: rgba(212,175,55,0.3);
+  text-underline-offset: 2px;
+}
+.aln-demo-btn:hover {
+  color: #ffe066;
+  text-decoration-color: #ffe066;
 }
 .aln-forgot-btn {
   background: none;

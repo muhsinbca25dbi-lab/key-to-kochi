@@ -6,38 +6,57 @@ class Store {
   constructor() {
     this.subscribers = new Set();
     this.state = this.loadState();
+    if (!this.state.adminAuth) {
+      this.state.adminAuth = {
+        isAuthenticated: false,
+        user: null
+      };
+    }
   }
 
   loadState() {
     try {
-      if (typeof window !== 'undefined' && window.localStorage) {
-        const saved = localStorage.getItem(STORAGE_KEY);
-        if (saved) {
-          const parsed = JSON.parse(saved);
-          if (parsed.properties && parsed.properties.length > 0) {
-            // Ensure all properties have suitableFor populated
-            parsed.properties = parsed.properties.map(p => {
-              if (!p.suitableFor || !Array.isArray(p.suitableFor) || p.suitableFor.length === 0) {
-                const bhk = p.bhk || '';
-                if (bhk === '1 BHK') return { ...p, suitableFor: ['Bachelors', 'Couples'] };
-                if (bhk === '4 BHK') return { ...p, suitableFor: ['Family'] };
-                return { ...p, suitableFor: ['Family', 'Couples'] };
-              }
-              return p;
-            });
-
-            // Ensure all enquiries have valid isRead boolean
-            if (parsed.enquiries && Array.isArray(parsed.enquiries)) {
-              parsed.enquiries = parsed.enquiries.map(e => ({
-                ...e,
-                isRead: typeof e.isRead === 'boolean' ? e.isRead : (e.status === 'New' ? false : true)
-              }));
-            } else {
-              parsed.enquiries = INITIAL_ENQUIRIES;
+      const saved = localStorage.getItem(STORAGE_KEY);
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (parsed.properties && parsed.properties.length > 0) {
+          // Ensure all properties have suitableFor populated
+          parsed.properties = parsed.properties.map(p => {
+            if (!p.suitableFor || !Array.isArray(p.suitableFor) || p.suitableFor.length === 0) {
+              const bhk = p.bhk || '';
+              if (bhk === '1 BHK') return { ...p, suitableFor: ['Bachelors', 'Couples'] };
+              if (bhk === '4 BHK') return { ...p, suitableFor: ['Family'] };
+              return { ...p, suitableFor: ['Family', 'Couples'] };
             }
+            return p;
+          });
 
-            return parsed;
+          // Ensure all enquiries have valid isRead boolean
+          if (parsed.enquiries && Array.isArray(parsed.enquiries)) {
+            parsed.enquiries = parsed.enquiries.map(e => ({
+              ...e,
+              isRead: typeof e.isRead === 'boolean' ? e.isRead : (e.status === 'New' ? false : true)
+            }));
+          } else {
+            parsed.enquiries = INITIAL_ENQUIRIES;
           }
+
+          if (!parsed.locations || !Array.isArray(parsed.locations)) {
+            parsed.locations = INITIAL_LOCATIONS;
+          }
+
+          if (!parsed.submissions || !Array.isArray(parsed.submissions)) {
+            parsed.submissions = INITIAL_OWNER_SUBMISSIONS;
+          }
+
+          if (!parsed.adminAuth || typeof parsed.adminAuth !== 'object') {
+            parsed.adminAuth = {
+              isAuthenticated: false,
+              user: null
+            };
+          }
+
+          return parsed;
         }
       }
     } catch (e) {
@@ -60,9 +79,7 @@ class Store {
 
   saveState(stateToSave = this.state) {
     try {
-      if (typeof window !== 'undefined' && window.localStorage) {
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(stateToSave));
-      }
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(stateToSave));
     } catch (e) {
       console.error('Storage error', e);
     }

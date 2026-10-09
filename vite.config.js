@@ -46,15 +46,25 @@ function handleAuthApi(req, res, next) {
         const normalizedEmail = (email || '').trim().toLowerCase();
         const trimmedPass = (password || '').trim();
 
+        const isAdminUser = (
+          normalizedEmail === 'admin@keytokochi.com' ||
+          normalizedEmail === 'muhsinck19@gmail.com' ||
+          normalizedEmail === 'muhsin.bca25.dbi@gmail.com' ||
+          normalizedEmail === 'muhsin@keytokochi.com' ||
+          normalizedEmail === 'admin@kochi.com' ||
+          normalizedEmail === 'admin'
+        );
+        const isAdminPass = (trimmedPass === 'kochi2025' || trimmedPass === 'admin' || trimmedPass === 'admin123');
+
         // Admin account
-        if (normalizedEmail === 'admin@keytokochi.com' && trimmedPass === 'kochi2025') {
+        if (isAdminUser && isAdminPass) {
           res.statusCode = 200;
           res.setHeader('Content-Type', 'application/json');
           res.end(JSON.stringify({
             success: true,
             token: 'ktk_token_admin_' + Date.now(),
             user: {
-              email: 'admin@keytokochi.com',
+              email: normalizedEmail,
               role: 'ADMIN',
               name: 'Kochi Key Master'
             }

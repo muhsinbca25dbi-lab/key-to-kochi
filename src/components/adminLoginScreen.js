@@ -24,7 +24,11 @@ export class AdminLoginScreen {
 
   mount() {
     this._renderHTML();
-    this._initThreeScene();
+    try {
+      this._initThreeScene();
+    } catch (err) {
+      console.warn('Three.js background initialization bypassed:', err);
+    }
     this._attachEvents();
     document.addEventListener('keydown', this._boundKeydown);
     document.body.style.overflow = 'hidden';
@@ -46,7 +50,7 @@ export class AdminLoginScreen {
       <div class="aln-root" id="aln-root">
         <div class="aln-canvas-host" id="aln-canvas-host"></div>
         <div class="aln-overlay"></div>
-        <button type="button" class="aln-close-btn" id="aln-close-btn" title="Return to public site" aria-label="Close admin portal">
+        <button class="aln-close-btn" id="aln-close-btn" title="Return to public site" aria-label="Close admin portal">
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
         </button>
         <div class="aln-brand-watermark">
@@ -98,6 +102,7 @@ export class AdminLoginScreen {
                 <span class="aln-field-error" id="aln-pass-error"></span>
               </div>
               <div class="aln-forgot-row">
+                <button type="button" class="aln-demo-btn" id="aln-demo-btn" title="Quick fill demo credentials">Fill Demo Credentials</button>
                 <button type="button" class="aln-forgot-btn" id="aln-forgot-btn">Forgot password?</button>
               </div>
               <div class="aln-form-error" id="aln-form-error" style="display:none"></div>
@@ -303,7 +308,9 @@ export class AdminLoginScreen {
     const frondMat = new THREE.MeshStandardMaterial({ color: 0x14532d, roughness: 0.6 });
     [[-7, 5], [-9, 12], [7, 5], [9, 14], [-20, 2], [-23, 10], [24, 8]].forEach(([px, pz]) => {
       const g = new THREE.Group();
-      g.add(Object.assign(new THREE.Mesh(new THREE.CylinderGeometry(0.18, 0.35, 6, 6), trunkMat), { position: new THREE.Vector3(0, 3, 0) }));
+      const trunk = new THREE.Mesh(new THREE.CylinderGeometry(0.18, 0.35, 6, 6), trunkMat);
+      trunk.position.set(0, 3, 0);
+      g.add(trunk);
       for (let fi = 0; fi < 6; fi++) {
         const ang = (fi / 6) * Math.PI * 2;
         const frond = new THREE.Mesh(new THREE.ConeGeometry(1.1, 3.2, 4), frondMat);
@@ -394,14 +401,23 @@ export class AdminLoginScreen {
     if (closeBtn) {
       closeBtn.addEventListener('click', (e) => {
         e.preventDefault();
-        e.stopPropagation();
         this._closeScreen();
       });
       closeBtn.addEventListener('touchend', (e) => {
         e.preventDefault();
-        e.stopPropagation();
         this._closeScreen();
       }, { passive: false });
+    }
+
+    const demoBtn = $('#aln-demo-btn');
+    if (demoBtn) {
+      demoBtn.addEventListener('click', () => {
+        const emailInput = $('#aln-email');
+        const passInput = $('#aln-pass');
+        if (emailInput) emailInput.value = 'muhsinck19@gmail.com';
+        if (passInput) passInput.value = 'kochi2025';
+        this._clearErrors();
+      });
     }
 
     const passInput = $('#aln-pass');
@@ -429,7 +445,7 @@ export class AdminLoginScreen {
     const el = this.container.querySelector('#aln-form-error');
     if (!el) return;
     el.style.display = 'flex';
-    el.innerHTML = '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#f59e0b" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><circle cx="12" cy="16" r="1" fill="#f59e0b"/></svg> Contact your system administrator to reset your password.';
+    el.innerHTML = '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#f59e0b" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><circle cx="12" cy="16" r="1" fill="#f59e0b"/></svg> Admin Access: <strong>muhsinck19@gmail.com</strong> (or <strong>admin@keytokochi.com</strong>) &bull; Password: <strong>kochi2025</strong>';
     el.className = 'aln-form-error aln-form-warn';
   }
 
@@ -474,11 +490,8 @@ export class AdminLoginScreen {
   async _handleSubmit() {
     if (this._isLoading) return;
     this._clearErrors();
-    const emailInput = this.container.querySelector('#aln-email');
-    const passInput = this.container.querySelector('#aln-pass');
-    const email = (emailInput ? emailInput.value : '').trim();
-    const pass = (passInput ? passInput.value : '').trim();
-
+    const email = (this.container.querySelector('#aln-email').value || '').trim();
+    const pass = (this.container.querySelector('#aln-pass').value || '').trim();
     let valid = true;
     if (!email) {
       this.container.querySelector('#aln-email-group').classList.add('has-error');
@@ -509,11 +522,13 @@ export class AdminLoginScreen {
         }, 380);
       } else {
         this._setLoading(false);
+        const passInput = this.container.querySelector('#aln-pass');
         if (passInput) passInput.value = '';
         this._showFormError(res.error || 'Invalid email or password.');
       }
     } catch (err) {
       this._setLoading(false);
+      const passInput = this.container.querySelector('#aln-pass');
       if (passInput) passInput.value = '';
       this._showFormError('Unable to connect to the authentication service. Please try again.');
     }

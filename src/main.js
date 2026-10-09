@@ -627,7 +627,16 @@ function setupEventListeners() {
     });
   }
 
-  // 9. Hidden Admin Access — Logo Multi-Click (5× in 3s) & Ctrl+Shift+A
+  // 9. Admin Portal Open / Login Handlers
+  const openAdminBtn = document.getElementById('btn-nav-admin-login');
+  const mobileAdminBtn = document.getElementById('mobile-btn-admin-login');
+  const footerAdminBtn = document.getElementById('footer-admin-login-link');
+
+  if (openAdminBtn) openAdminBtn.addEventListener('click', handleAdminTrigger);
+  if (mobileAdminBtn) mobileAdminBtn.addEventListener('click', handleAdminTrigger);
+  if (footerAdminBtn) footerAdminBtn.addEventListener('click', handleAdminTrigger);
+
+  // Hidden Admin Access — Logo Multi-Click (5× in 3s) & Ctrl+Shift+A
   setupHiddenAdminAccess();
 }
 
@@ -658,14 +667,14 @@ function initAdminRouting() {
 function handleRouteChange() {
   if (isAdminRoute()) {
     if (authService.isAdmin()) {
-      // Test D: refresh dashboard -> authorized admin remains in dashboard
+      // Authorized admin remains in dashboard on refresh (Test D)
       launchAdminPortal(false);
     } else {
-      // Test H: open dashboard URL directly without authentication -> redirect to Admin Login
+      // Unauthenticated access redirects to Admin Login Screen (Test H)
       showAdminLoginScreen();
     }
   } else {
-    // Navigated away from admin route (e.g. via browser back to /)
+    // Navigated away from admin route (e.g. via browser back)
     if (adminPortalInstance) {
       exitAdminPortal(false);
     }
@@ -805,9 +814,7 @@ function setupHiddenAdminAccess() {
   let clickResetTimer = null;
 
   const onLogoClick = (e) => {
-    // Accumulate clicks
     clickCount++;
-
     if (clickResetTimer) clearTimeout(clickResetTimer);
     clickResetTimer = setTimeout(() => {
       clickCount = 0;

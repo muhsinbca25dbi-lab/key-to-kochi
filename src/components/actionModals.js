@@ -221,7 +221,7 @@ export function openAdminLoginModal(onLoginSuccess) {
         <form id="admin-login-form" class="action-modal-form">
           <div class="form-field full-width">
             <label>Admin Email</label>
-            <input type="email" id="login-email" required value="admin@keytokochi.com" />
+            <input type="email" id="login-email" required value="muhsinck19@gmail.com" />
           </div>
 
           <div class="form-field full-width">
@@ -230,7 +230,7 @@ export function openAdminLoginModal(onLoginSuccess) {
           </div>
 
           <div class="login-quick-hint">
-            <span>Demo Credentials: <strong>admin@keytokochi.com</strong> / <strong>kochi2025</strong></span>
+            <span>Admin Credentials: <strong>muhsinck19@gmail.com</strong> / <strong>kochi2025</strong></span>
           </div>
 
           <div class="modal-form-actions">
