@@ -1,9 +1,10 @@
 import { store } from './store/state.js';
 import { initThreeScene } from './components/threeScene.js';
 import { openPropertyModal } from './components/propertyModal.js';
-import { openEnquiryModal, openScheduleVisitModal, openAdminLoginModal, showToastNotification } from './components/actionModals.js';
+import { openEnquiryModal, openScheduleVisitModal, showToastNotification } from './components/actionModals.js';
 import { openListPropertyModal } from './components/listPropertyModal.js';
 import { AdminPortal } from './components/adminPortal.js';
+import { AdminLoginScreen } from './components/adminLoginScreen.js';
 
 // Application State for Public Filters
 const filterState = {
@@ -631,13 +632,37 @@ function setupEventListeners() {
    Authentication is ALWAYS required. These triggers never bypass security.
    ========================================================================== */
 function handleAdminTrigger() {
+  // If already authenticated, go straight to dashboard
   if (store.state.adminAuth.isAuthenticated) {
     launchAdminPortal();
-  } else {
-    openAdminLoginModal(() => {
-      launchAdminPortal();
-    });
+    return;
   }
+
+  // Show the cinematic 3D Admin Login Screen
+  const adminRoot = document.getElementById('admin-portal-container');
+  const publicRoot = document.getElementById('public-app-root');
+  const floatingWA = document.getElementById('floating-whatsapp-btn');
+  if (!adminRoot) return;
+
+  // Hide public site while login screen is active
+  adminRoot.style.display = 'flex';
+  if (publicRoot) publicRoot.style.display = 'none';
+  if (floatingWA) floatingWA.style.display = 'none';
+
+  const loginScreen = new AdminLoginScreen(
+    adminRoot,
+    // onSuccess — authentication passed, open the dashboard
+    () => {
+      launchAdminPortal();
+    },
+    // onClose — user cancelled, return to public site
+    () => {
+      adminRoot.style.display = 'none';
+      if (publicRoot) publicRoot.style.display = 'block';
+      if (floatingWA) floatingWA.style.display = '';
+    }
+  );
+  loginScreen.mount();
 }
 
 function setupHiddenAdminAccess() {

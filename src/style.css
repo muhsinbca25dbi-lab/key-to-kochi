@@ -4560,3 +4560,417 @@ button, input, select, textarea {
 }
 
 
+
+/* ==========================================================================
+   ADMIN LOGIN SCREEN (aln-*) — Cinematic 3D Full-Screen Portal
+   ========================================================================== */
+
+/* Root container: fills admin-portal-container (position:relative/absolute) */
+.aln-root {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  font-family: var(--font-main, 'Plus Jakarta Sans', sans-serif);
+}
+
+/* Three.js canvas host */
+.aln-canvas-host {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+}
+.aln-canvas-host canvas {
+  width: 100% !important;
+  height: 100% !important;
+  display: block;
+}
+
+/* Cinematic depth overlay */
+.aln-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  background:
+    radial-gradient(ellipse 70% 60% at 50% 100%, rgba(6,8,16,0.95) 0%, transparent 80%),
+    radial-gradient(ellipse 50% 80% at 50% 50%, rgba(6,8,16,0.45) 0%, transparent 100%);
+  pointer-events: none;
+}
+
+/* Close (X) button — top right */
+.aln-close-btn {
+  position: absolute;
+  top: 20px;
+  right: 20px;
+  z-index: 20;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  border: 1px solid rgba(212,175,55,0.25);
+  background: rgba(10,13,20,0.72);
+  backdrop-filter: blur(10px);
+  color: rgba(212,175,55,0.7);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.22s ease;
+}
+.aln-close-btn:hover {
+  background: rgba(212,175,55,0.15);
+  border-color: rgba(212,175,55,0.6);
+  color: #d4af37;
+  transform: rotate(90deg);
+}
+
+/* Brand watermark — top left */
+.aln-brand-watermark {
+  position: absolute;
+  top: 22px;
+  left: 24px;
+  z-index: 20;
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  color: rgba(212,175,55,0.55);
+  font-family: var(--font-serif, 'Cinzel', Georgia, serif);
+  font-size: 0.72rem;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  pointer-events: none;
+}
+
+/* Panel wrap — centres the glass card */
+.aln-panel-wrap {
+  position: relative;
+  z-index: 10;
+  width: 100%;
+  max-width: 440px;
+  padding: 20px;
+  display: flex;
+  justify-content: center;
+}
+
+/* Glass-morphism login panel */
+.aln-panel {
+  width: 100%;
+  background: rgba(10, 14, 22, 0.78);
+  backdrop-filter: blur(28px) saturate(160%);
+  -webkit-backdrop-filter: blur(28px) saturate(160%);
+  border: 1px solid rgba(212,175,55,0.18);
+  border-radius: 20px;
+  padding: 38px 40px 32px;
+  box-shadow:
+    0 0 0 1px rgba(212,175,55,0.06),
+    0 8px 40px rgba(0,0,0,0.7),
+    0 0 80px rgba(212,175,55,0.06);
+  animation: aln-panel-in 0.55s cubic-bezier(0.22,1,0.36,1) both;
+}
+
+@keyframes aln-panel-in {
+  from { opacity: 0; transform: translateY(28px) scale(0.97); }
+  to   { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+/* Shake on error */
+.aln-panel.aln-shake {
+  animation: aln-shake 0.5s cubic-bezier(0.36,0.07,0.19,0.97) both;
+}
+@keyframes aln-shake {
+  10%, 90% { transform: translateX(-3px); }
+  20%, 80% { transform: translateX(4px); }
+  30%, 50%, 70% { transform: translateX(-5px); }
+  40%, 60% { transform: translateX(5px); }
+}
+
+/* Success flash */
+.aln-panel.aln-success-flash {
+  animation: aln-success-flash 0.4s ease forwards;
+}
+@keyframes aln-success-flash {
+  0%   { border-color: rgba(212,175,55,0.18); box-shadow: 0 8px 40px rgba(0,0,0,0.7), 0 0 80px rgba(212,175,55,0.06); }
+  50%  { border-color: rgba(212,175,55,0.6);  box-shadow: 0 8px 40px rgba(0,0,0,0.5), 0 0 60px rgba(212,175,55,0.3); }
+  100% { border-color: rgba(16,185,129,0.5);  box-shadow: 0 8px 40px rgba(0,0,0,0.6), 0 0 60px rgba(16,185,129,0.2); }
+}
+
+/* Panel header */
+.aln-panel-header {
+  text-align: center;
+  margin-bottom: 20px;
+}
+
+.aln-key-emblem {
+  width: 62px;
+  height: 62px;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(212,175,55,0.12) 0%, rgba(212,175,55,0.04) 70%);
+  border: 1.5px solid rgba(212,175,55,0.32);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 0 auto 14px;
+  box-shadow: 0 0 24px rgba(212,175,55,0.15), inset 0 1px 0 rgba(255,255,255,0.04);
+  animation: aln-emblem-pulse 3s ease-in-out infinite;
+}
+@keyframes aln-emblem-pulse {
+  0%, 100% { box-shadow: 0 0 20px rgba(212,175,55,0.12), inset 0 1px 0 rgba(255,255,255,0.04); }
+  50%       { box-shadow: 0 0 36px rgba(212,175,55,0.26), inset 0 1px 0 rgba(255,255,255,0.04); }
+}
+
+.aln-title {
+  font-family: var(--font-serif, 'Cinzel', Georgia, serif);
+  font-size: 1.55rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  background: linear-gradient(135deg, #f6d860 0%, #d4af37 55%, #aa771c 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  margin: 0 0 6px;
+  line-height: 1.2;
+}
+
+.aln-subtitle {
+  font-size: 0.78rem;
+  color: rgba(180,192,215,0.6);
+  letter-spacing: 0.04em;
+  margin: 0;
+  font-weight: 400;
+}
+
+/* Divider */
+.aln-divider {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 0 0 24px;
+}
+.aln-divider-line {
+  flex: 1;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(212,175,55,0.25), transparent);
+}
+
+/* Form */
+.aln-form {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.aln-field-group {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.aln-label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.76rem;
+  font-weight: 600;
+  color: rgba(180,192,215,0.75);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+.aln-label svg { opacity: 0.7; flex-shrink: 0; }
+
+.aln-input {
+  width: 100%;
+  padding: 11px 14px;
+  background: rgba(14,18,28,0.82);
+  border: 1px solid rgba(212,175,55,0.14);
+  border-radius: 10px;
+  color: #e8eaf2;
+  font-size: 0.93rem;
+  font-family: var(--font-main, sans-serif);
+  outline: none;
+  transition: border-color 0.2s, box-shadow 0.2s, background 0.2s;
+  box-shadow: inset 0 1px 3px rgba(0,0,0,0.3);
+  box-sizing: border-box;
+}
+.aln-input::placeholder { color: rgba(120,132,160,0.55); }
+.aln-input:focus {
+  border-color: rgba(212,175,55,0.5);
+  background: rgba(18,24,38,0.92);
+  box-shadow: 0 0 0 3px rgba(212,175,55,0.1), inset 0 1px 3px rgba(0,0,0,0.3);
+}
+
+/* Error state on field group */
+.aln-field-group.has-error .aln-input {
+  border-color: rgba(248,113,113,0.55);
+  background: rgba(20,10,10,0.85);
+}
+.aln-field-group.has-error .aln-input:focus {
+  box-shadow: 0 0 0 3px rgba(248,113,113,0.12), inset 0 1px 3px rgba(0,0,0,0.3);
+}
+
+.aln-field-error {
+  font-size: 0.73rem;
+  color: #f87171;
+  min-height: 16px;
+  display: block;
+}
+
+/* Password wrapper */
+.aln-pass-wrap {
+  position: relative;
+}
+.aln-pass-wrap .aln-input {
+  padding-right: 44px;
+}
+.aln-toggle-pass {
+  position: absolute;
+  right: 11px;
+  top: 50%;
+  transform: translateY(-50%);
+  background: none;
+  border: none;
+  color: rgba(120,132,160,0.65);
+  cursor: pointer;
+  padding: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: color 0.18s;
+  border-radius: 6px;
+}
+.aln-toggle-pass:hover { color: #d4af37; }
+.aln-toggle-pass:focus-visible { outline: 2px solid rgba(212,175,55,0.4); outline-offset: 2px; }
+
+/* Forgot password row */
+.aln-forgot-row {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: -6px;
+}
+.aln-forgot-btn {
+  background: none;
+  border: none;
+  color: rgba(212,175,55,0.6);
+  font-size: 0.77rem;
+  cursor: pointer;
+  padding: 2px 0;
+  letter-spacing: 0.02em;
+  font-family: var(--font-main, sans-serif);
+  transition: color 0.18s;
+  text-decoration: underline;
+  text-decoration-color: transparent;
+  text-underline-offset: 2px;
+}
+.aln-forgot-btn:hover { color: #d4af37; text-decoration-color: rgba(212,175,55,0.5); }
+
+/* Form-level error / warning */
+.aln-form-error {
+  display: none;
+  align-items: flex-start;
+  gap: 9px;
+  padding: 11px 14px;
+  border-radius: 10px;
+  font-size: 0.82rem;
+  line-height: 1.5;
+  font-weight: 500;
+}
+.aln-form-err-active {
+  background: rgba(248,113,113,0.08);
+  border: 1px solid rgba(248,113,113,0.28);
+  color: #fca5a5;
+}
+.aln-form-warn {
+  background: rgba(245,158,11,0.08);
+  border: 1px solid rgba(245,158,11,0.28);
+  color: #fcd34d;
+}
+.aln-form-error svg { flex-shrink: 0; margin-top: 1px; }
+
+/* Submit button */
+.aln-submit-btn {
+  width: 100%;
+  padding: 13px 20px;
+  border-radius: 11px;
+  border: none;
+  background: var(--gold-gradient, linear-gradient(135deg, #f6d860 0%, #d4af37 50%, #aa771c 100%));
+  color: #07090e;
+  font-weight: 700;
+  font-size: 0.92rem;
+  font-family: var(--font-main, sans-serif);
+  letter-spacing: 0.04em;
+  cursor: pointer;
+  transition: all 0.22s ease;
+  box-shadow: 0 4px 18px rgba(212,175,55,0.28);
+  position: relative;
+  overflow: hidden;
+  margin-top: 4px;
+}
+.aln-submit-btn:hover:not(:disabled) {
+  background: var(--gold-gradient-hover, linear-gradient(135deg, #ffe066 0%, #e2be42 50%, #c48c26 100%));
+  box-shadow: 0 6px 28px rgba(212,175,55,0.42);
+  transform: translateY(-1px);
+}
+.aln-submit-btn:active:not(:disabled) { transform: translateY(0); }
+.aln-submit-btn:disabled { opacity: 0.65; cursor: not-allowed; }
+
+.aln-btn-text,
+.aln-btn-loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+
+/* Spinner animation */
+.aln-spinner {
+  animation: aln-spin 0.9s linear infinite;
+}
+@keyframes aln-spin {
+  to { transform: rotate(360deg); }
+}
+
+/* Panel footer */
+.aln-panel-footer {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  font-size: 0.72rem;
+  color: rgba(100,112,140,0.65);
+  margin: 20px 0 0;
+  letter-spacing: 0.03em;
+}
+
+/* Mobile responsive */
+@media (max-width: 480px) {
+  .aln-panel {
+    padding: 28px 24px 24px;
+    border-radius: 16px;
+  }
+  .aln-panel-wrap {
+    padding: 14px;
+  }
+  .aln-title {
+    font-size: 1.3rem;
+  }
+}
+
+/* ==========================================================================
+   ADMIN PORTAL ROOT CONTAINER — Full-viewport host for login + dashboard
+   ========================================================================== */
+#admin-portal-container {
+  position: fixed;
+  inset: 0;
+  z-index: 9000;
+  width: 100vw;
+  height: 100vh;
+  overflow: hidden;
+}
+#admin-portal-container[style*="display: flex"],
+#admin-portal-container[style*="display:flex"] {
+  display: flex !important;
+  align-items: stretch;
+}
