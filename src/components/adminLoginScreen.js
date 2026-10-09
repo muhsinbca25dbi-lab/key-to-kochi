@@ -1,6 +1,7 @@
-﻿import * as THREE from 'three';
+import * as THREE from 'three';
 import { store } from '../store/state.js';
 import { showToastNotification } from './actionModals.js';
+import { authService } from '../services/authService.js';
 
 /**
  * AdminLoginScreen
@@ -45,7 +46,7 @@ export class AdminLoginScreen {
       <div class="aln-root" id="aln-root">
         <div class="aln-canvas-host" id="aln-canvas-host"></div>
         <div class="aln-overlay"></div>
-        <button class="aln-close-btn" id="aln-close-btn" title="Return to public site" aria-label="Close admin portal">
+        <button type="button" class="aln-close-btn" id="aln-close-btn" title="Return to public site" aria-label="Close admin portal">
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
         </button>
         <div class="aln-brand-watermark">
@@ -65,7 +66,7 @@ export class AdminLoginScreen {
                   <path d="m15.5 7.5 3 3L22 7l-3-3"/>
                 </svg>
               </div>
-              <h1 class="aln-title">Admin Portal</h1>
+              <h1 class="aln-title">Admin Portal Authentication</h1>
               <p class="aln-subtitle">KEY TO KOCHI &mdash; Secure Management Access</p>
             </div>
             <div class="aln-divider">
@@ -389,7 +390,19 @@ export class AdminLoginScreen {
 
   _attachEvents() {
     const $ = id => this.container.querySelector(id);
-    $('#aln-close-btn').addEventListener('click', () => this._closeScreen());
+    const closeBtn = $('#aln-close-btn');
+    if (closeBtn) {
+      closeBtn.addEventListener('click', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        this._closeScreen();
+      });
+      closeBtn.addEventListener('touchend', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        this._closeScreen();
+      }, { passive: false });
+    }
 
     const passInput = $('#aln-pass');
     const toggleBtn = $('#aln-toggle-pass');
@@ -408,6 +421,7 @@ export class AdminLoginScreen {
 
   _closeScreen() {
     this.unmount();
+    document.body.style.overflow = '';
     if (this.onClose) this.onClose();
   }
 
@@ -460,8 +474,11 @@ export class AdminLoginScreen {
   async _handleSubmit() {
     if (this._isLoading) return;
     this._clearErrors();
-    const email = (this.container.querySelector('#aln-email').value || '').trim();
-    const pass = (this.container.querySelector('#aln-pass').value || '').trim();
+    const emailInput = this.container.querySelector('#aln-email');
+    const passInput = this.container.querySelector('#aln-pass');
+    const email = (emailInput ? emailInput.value : '').trim();
+    const pass = (passInput ? passInput.value : '').trim();
+
     let valid = true;
     if (!email) {
       this.container.querySelector('#aln-email-group').classList.add('has-error');
@@ -481,40 +498,24 @@ export class AdminLoginScreen {
 
     this._setLoading(true);
     try {
-      const ok = await this._authenticate(email, pass);
-      if (ok) {
-        store.state.adminAuth.isAuthenticated = true;
-        store.state.adminAuth.user = { email, name: 'Admin' };
-        store.saveState();
+      const res = await authService.login(email, pass);
+      if (res.ok && res.user && res.user.role === 'ADMIN') {
         const panel = this.container.querySelector('#aln-panel');
         if (panel) panel.classList.add('aln-success-flash');
         setTimeout(() => {
           this._setLoading(false);
           this.unmount();
-          if (this.onSuccess) this.onSuccess();
-        }, 420);
+          if (this.onSuccess) this.onSuccess(res.user);
+        }, 380);
       } else {
         this._setLoading(false);
-        this._showFormError('Invalid credentials. Please check your email and password.');
+        if (passInput) passInput.value = '';
+        this._showFormError(res.error || 'Invalid email or password.');
       }
     } catch (err) {
       this._setLoading(false);
-      this._showFormError('Authentication failed. Please try again.');
+      if (passInput) passInput.value = '';
+      this._showFormError('Unable to connect to the authentication service. Please try again.');
     }
-  }
-
-  /**
-   * _authenticate — authentication check.
-   * Replace with real backend API call when server is integrated.
-   * Example:
-   *   const res = await fetch('/api/admin/login', { method:'POST', ... });
-   *   const data = await res.json();
-   *   return data.role === 'ADMIN';
-   */
-  async _authenticate(email, pass) {
-    await new Promise(r => setTimeout(r, 700));
-    const ADMIN_EMAIL = 'admin@keytokochi.com';
-    const ADMIN_PASS  = 'kochi2025';
-    return email === ADMIN_EMAIL && pass === ADMIN_PASS;
   }
 }

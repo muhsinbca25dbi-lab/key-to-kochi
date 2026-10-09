@@ -5,6 +5,7 @@ import { openEnquiryModal, openScheduleVisitModal, showToastNotification } from 
 import { openListPropertyModal } from './components/listPropertyModal.js';
 import { AdminPortal } from './components/adminPortal.js';
 import { AdminLoginScreen } from './components/adminLoginScreen.js';
+import { authService } from './services/authService.js';
 
 // Application State for Public Filters
 const filterState = {
@@ -23,6 +24,7 @@ const filterState = {
 };
 
 let adminPortalInstance = null;
+let currentLoginScreen = null;
 
 document.addEventListener('DOMContentLoaded', () => {
   // 1. Initialize 3D Hero Scene
@@ -55,6 +57,9 @@ document.addEventListener('DOMContentLoaded', () => {
     renderFeaturedProperties();
     renderPopularLocations();
   });
+
+  // 8. Admin Routing & Deep-Linking Guard
+  initAdminRouting();
 });
 
 /* ==========================================================================
@@ -627,42 +632,170 @@ function setupEventListeners() {
 }
 
 /* ==========================================================================
-   HIDDEN ADMIN ACCESS — NO VISIBLE INDICATION ON PUBLIC SITE
-   5× logo clicks within 3s  OR  Ctrl+Shift+A  → opens Admin Login modal.
-   Authentication is ALWAYS required. These triggers never bypass security.
+   ADMIN ROUTING & AUTHENTICATED ACCESS GUARDS
    ========================================================================== */
+function isAdminRoute() {
+  const hash = (window.location.hash || '').toLowerCase();
+  const path = (window.location.pathname || '').toLowerCase();
+  return (
+    hash === '#/admin' ||
+    hash === '#admin' ||
+    hash === '#/dashboard' ||
+    hash === '#dashboard' ||
+    hash === '#/admin/dashboard' ||
+    hash.startsWith('#/admin') ||
+    path === '/admin' ||
+    path === '/admin/dashboard'
+  );
+}
+
+function initAdminRouting() {
+  window.addEventListener('hashchange', handleRouteChange);
+  window.addEventListener('popstate', handleRouteChange);
+  handleRouteChange();
+}
+
+function handleRouteChange() {
+  if (isAdminRoute()) {
+    if (authService.isAdmin()) {
+      // Test D: refresh dashboard -> authorized admin remains in dashboard
+      launchAdminPortal(false);
+    } else {
+      // Test H: open dashboard URL directly without authentication -> redirect to Admin Login
+      showAdminLoginScreen();
+    }
+  } else {
+    // Navigated away from admin route (e.g. via browser back to /)
+    if (adminPortalInstance) {
+      exitAdminPortal(false);
+    }
+    if (currentLoginScreen) {
+      currentLoginScreen.unmount();
+      currentLoginScreen = null;
+      const adminRoot = document.getElementById('admin-portal-container');
+      const publicRoot = document.getElementById('public-app-root');
+      const floatingWA = document.getElementById('floating-whatsapp-btn');
+      if (adminRoot) adminRoot.style.display = 'none';
+      if (publicRoot) publicRoot.style.display = 'block';
+      if (floatingWA) floatingWA.style.display = '';
+      document.body.style.overflow = '';
+    }
+  }
+}
+
 function handleAdminTrigger() {
-  // If already authenticated, go straight to dashboard
-  if (store.state.adminAuth.isAuthenticated) {
-    launchAdminPortal();
+  if (authService.isAdmin()) {
+    launchAdminPortal(true);
+  } else {
+    showAdminLoginScreen();
+  }
+}
+
+function showAdminLoginScreen() {
+  if (authService.isAdmin()) {
+    launchAdminPortal(true);
     return;
   }
 
-  // Show the cinematic 3D Admin Login Screen
   const adminRoot = document.getElementById('admin-portal-container');
   const publicRoot = document.getElementById('public-app-root');
   const floatingWA = document.getElementById('floating-whatsapp-btn');
   if (!adminRoot) return;
 
-  // Hide public site while login screen is active
+  if (currentLoginScreen) {
+    currentLoginScreen.unmount();
+    currentLoginScreen = null;
+  }
+
+  // Ensure public page is hidden and overlay is displayed
   adminRoot.style.display = 'flex';
   if (publicRoot) publicRoot.style.display = 'none';
   if (floatingWA) floatingWA.style.display = 'none';
 
-  const loginScreen = new AdminLoginScreen(
+  currentLoginScreen = new AdminLoginScreen(
     adminRoot,
-    // onSuccess — authentication passed, open the dashboard
-    () => {
-      launchAdminPortal();
+    // onSuccess — authenticated passed and verified as admin (Test A)
+    (user) => {
+      currentLoginScreen = null;
+      launchAdminPortal(true);
     },
-    // onClose — user cancelled, return to public site
+    // onClose — clicked X or escape (Test F)
     () => {
+      currentLoginScreen = null;
       adminRoot.style.display = 'none';
       if (publicRoot) publicRoot.style.display = 'block';
       if (floatingWA) floatingWA.style.display = '';
+      document.body.style.overflow = '';
+      if (isAdminRoute()) {
+        window.history.replaceState(null, '', window.location.pathname.replace(/\/admin.*$/, '') || '/');
+        if (window.location.hash.includes('admin') || window.location.hash.includes('dashboard')) {
+          window.location.hash = '';
+        }
+      }
     }
   );
-  loginScreen.mount();
+  currentLoginScreen.mount();
+}
+
+function launchAdminPortal(updateUrl = true) {
+  if (!authService.isAdmin()) {
+    showAdminLoginScreen();
+    return;
+  }
+
+  const adminRoot = document.getElementById('admin-portal-container');
+  const publicRoot = document.getElementById('public-app-root');
+  const floatingWA = document.getElementById('floating-whatsapp-btn');
+  if (!adminRoot) return;
+
+  if (currentLoginScreen) {
+    currentLoginScreen.unmount();
+    currentLoginScreen = null;
+  }
+
+  adminRoot.style.display = 'flex';
+  if (publicRoot) publicRoot.style.display = 'none';
+  if (floatingWA) floatingWA.style.display = 'none';
+
+  if (updateUrl && !isAdminRoute()) {
+    window.history.pushState({ admin: true }, '', '#admin');
+  }
+
+  if (adminPortalInstance) {
+    adminPortalInstance.unmount();
+    adminPortalInstance = null;
+  }
+
+  adminPortalInstance = new AdminPortal(adminRoot, (isLogout) => {
+    exitAdminPortal(isLogout);
+  });
+  adminPortalInstance.mount();
+}
+
+function exitAdminPortal(isLogout = false) {
+  const adminRoot = document.getElementById('admin-portal-container');
+  const publicRoot = document.getElementById('public-app-root');
+  const floatingWA = document.getElementById('floating-whatsapp-btn');
+
+  if (adminPortalInstance) {
+    adminPortalInstance.unmount();
+    adminPortalInstance = null;
+  }
+
+  if (adminRoot) adminRoot.style.display = 'none';
+  if (publicRoot) publicRoot.style.display = 'block';
+  if (floatingWA) floatingWA.style.display = '';
+  document.body.style.overflow = '';
+
+  // Update browser history so Back button cannot reopen protected dashboard (Test E)
+  const basePath = window.location.pathname.replace(/\/admin.*$/, '') || '/';
+  window.history.replaceState(null, '', basePath);
+  if (window.location.hash.includes('admin') || window.location.hash.includes('dashboard')) {
+    window.location.hash = '';
+  }
+
+  renderPropertiesListing();
+  renderFeaturedProperties();
 }
 
 function setupHiddenAdminAccess() {
@@ -672,11 +805,9 @@ function setupHiddenAdminAccess() {
   let clickResetTimer = null;
 
   const onLogoClick = (e) => {
-    // Prevent normal anchor navigation only when accumulating clicks
-    // We still allow normal navigation after the sequence times out.
+    // Accumulate clicks
     clickCount++;
 
-    // Clear any existing reset timer and start a fresh 3-second window
     if (clickResetTimer) clearTimeout(clickResetTimer);
     clickResetTimer = setTimeout(() => {
       clickCount = 0;
@@ -684,7 +815,6 @@ function setupHiddenAdminAccess() {
     }, 3000);
 
     if (clickCount >= 5) {
-      // Threshold reached — open admin access
       e.preventDefault();
       clickCount = 0;
       clearTimeout(clickResetTimer);
@@ -695,50 +825,18 @@ function setupHiddenAdminAccess() {
 
   if (logoEl) {
     logoEl.addEventListener('click', onLogoClick);
-    // Also support touch for mobile (touchend fires before click, use click for consistency)
     logoEl.addEventListener('touchend', (e) => {
-      // touchend doesn't always fire a click; manually call onLogoClick
       onLogoClick(e);
     }, { passive: false });
   }
 
   // --- Keyboard shortcut: Ctrl + Shift + A ---
   document.addEventListener('keydown', (e) => {
-    if (e.ctrlKey && e.shiftKey && e.key === 'A') {
+    if (e.ctrlKey && e.shiftKey && (e.key === 'A' || e.key === 'a')) {
       e.preventDefault();
       handleAdminTrigger();
     }
   });
-}
-
-/* ==========================================================================
-   ADMIN PORTAL MOUNT / UNMOUNT
-   ========================================================================== */
-function launchAdminPortal() {
-  const adminRoot = document.getElementById('admin-portal-container');
-  const publicRoot = document.getElementById('public-app-root');
-  const floatingWA = document.getElementById('floating-whatsapp-btn');
-  if (!adminRoot) return;
-
-  adminRoot.style.display = 'flex';
-  if (publicRoot) publicRoot.style.display = 'none';
-  if (floatingWA) floatingWA.style.display = 'none';
-
-  if (!adminPortalInstance) {
-    adminPortalInstance = new AdminPortal(adminRoot, () => {
-      // Callback to exit admin portal
-      adminRoot.style.display = 'none';
-      if (publicRoot) publicRoot.style.display = 'block';
-      if (floatingWA) floatingWA.style.display = '';
-      if (adminPortalInstance) {
-        adminPortalInstance.unmount();
-        adminPortalInstance = null;
-      }
-      renderPropertiesListing();
-      renderFeaturedProperties();
-    });
-    adminPortalInstance.mount();
-  }
 }
 
 /* ==========================================================================

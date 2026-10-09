@@ -1,4 +1,5 @@
 import { store } from '../store/state.js';
+import { authService } from '../services/authService.js';
 
 export function openEnquiryModal(property = null) {
   const container = document.getElementById('action-modal-container');
@@ -253,19 +254,21 @@ export function openAdminLoginModal(onLoginSuccess) {
   });
 
   const form = container.querySelector('#admin-login-form');
-  form.addEventListener('submit', (e) => {
+  form.addEventListener('submit', async (e) => {
     e.preventDefault();
     const email = container.querySelector('#login-email').value.trim();
     const pass = container.querySelector('#login-pass').value.trim();
 
-    if (email === 'admin@keytokochi.com' && pass === 'kochi2025') {
-      store.state.adminAuth.isAuthenticated = true;
-      store.state.adminAuth.user = { email, name: 'Kochi Key Master' };
-      store.saveState();
-      close();
-      if (onLoginSuccess) onLoginSuccess();
-    } else {
-      alert('Invalid credentials. Please use demo credentials: admin@keytokochi.com / kochi2025');
+    try {
+      const res = await authService.login(email, pass);
+      if (res.ok && res.user && res.user.role === 'ADMIN') {
+        close();
+        if (onLoginSuccess) onLoginSuccess(res.user);
+      } else {
+        alert(res.error || 'Invalid email or password.');
+      }
+    } catch (_) {
+      alert('Unable to connect to the authentication service. Please try again.');
     }
   });
 }

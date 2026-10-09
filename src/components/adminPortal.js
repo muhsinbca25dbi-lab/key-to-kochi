@@ -1,4 +1,5 @@
 import { store } from '../store/state.js';
+import { authService } from '../services/authService.js';
 import { renderBHKDonutChart, renderFurnishingBarChart, renderLocationBarChart, renderAvailabilityRatio, renderTenantTypeChart } from './charts.js';
 import { CURATED_IMAGE_PRESETS, TENANT_TYPES, TENANT_TYPE_CONFIG } from '../data/initialData.js';
 import { showToastNotification } from './actionModals.js';
@@ -232,17 +233,16 @@ export class AdminPortal {
     const backBtn = this.container.querySelector('#admin-btn-back-public');
     if (backBtn) {
       backBtn.addEventListener('click', () => {
-        if (this.onClose) this.onClose();
+        if (this.onClose) this.onClose(false);
       });
     }
 
     // Logout
     const logoutBtn = this.container.querySelector('#admin-btn-logout');
     if (logoutBtn) {
-      logoutBtn.addEventListener('click', () => {
-        store.state.adminAuth.isAuthenticated = false;
-        store.saveState();
-        if (this.onClose) this.onClose();
+      logoutBtn.addEventListener('click', async () => {
+        await authService.logout();
+        if (this.onClose) this.onClose(true);
       });
     }
   }

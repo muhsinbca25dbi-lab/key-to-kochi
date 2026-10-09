@@ -10,32 +10,34 @@ class Store {
 
   loadState() {
     try {
-      const saved = localStorage.getItem(STORAGE_KEY);
-      if (saved) {
-        const parsed = JSON.parse(saved);
-        if (parsed.properties && parsed.properties.length > 0) {
-          // Ensure all properties have suitableFor populated
-          parsed.properties = parsed.properties.map(p => {
-            if (!p.suitableFor || !Array.isArray(p.suitableFor) || p.suitableFor.length === 0) {
-              const bhk = p.bhk || '';
-              if (bhk === '1 BHK') return { ...p, suitableFor: ['Bachelors', 'Couples'] };
-              if (bhk === '4 BHK') return { ...p, suitableFor: ['Family'] };
-              return { ...p, suitableFor: ['Family', 'Couples'] };
+      if (typeof window !== 'undefined' && window.localStorage) {
+        const saved = localStorage.getItem(STORAGE_KEY);
+        if (saved) {
+          const parsed = JSON.parse(saved);
+          if (parsed.properties && parsed.properties.length > 0) {
+            // Ensure all properties have suitableFor populated
+            parsed.properties = parsed.properties.map(p => {
+              if (!p.suitableFor || !Array.isArray(p.suitableFor) || p.suitableFor.length === 0) {
+                const bhk = p.bhk || '';
+                if (bhk === '1 BHK') return { ...p, suitableFor: ['Bachelors', 'Couples'] };
+                if (bhk === '4 BHK') return { ...p, suitableFor: ['Family'] };
+                return { ...p, suitableFor: ['Family', 'Couples'] };
+              }
+              return p;
+            });
+
+            // Ensure all enquiries have valid isRead boolean
+            if (parsed.enquiries && Array.isArray(parsed.enquiries)) {
+              parsed.enquiries = parsed.enquiries.map(e => ({
+                ...e,
+                isRead: typeof e.isRead === 'boolean' ? e.isRead : (e.status === 'New' ? false : true)
+              }));
+            } else {
+              parsed.enquiries = INITIAL_ENQUIRIES;
             }
-            return p;
-          });
 
-          // Ensure all enquiries have valid isRead boolean
-          if (parsed.enquiries && Array.isArray(parsed.enquiries)) {
-            parsed.enquiries = parsed.enquiries.map(e => ({
-              ...e,
-              isRead: typeof e.isRead === 'boolean' ? e.isRead : (e.status === 'New' ? false : true)
-            }));
-          } else {
-            parsed.enquiries = INITIAL_ENQUIRIES;
+            return parsed;
           }
-
-          return parsed;
         }
       }
     } catch (e) {
@@ -58,7 +60,9 @@ class Store {
 
   saveState(stateToSave = this.state) {
     try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(stateToSave));
+      if (typeof window !== 'undefined' && window.localStorage) {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(stateToSave));
+      }
     } catch (e) {
       console.error('Storage error', e);
     }
