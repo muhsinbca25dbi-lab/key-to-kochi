@@ -621,24 +621,69 @@ function setupEventListeners() {
     });
   }
 
-  // 9. Admin Portal Open / Login Handlers
-  const openAdminBtn = document.getElementById('btn-nav-admin-login');
-  const mobileAdminBtn = document.getElementById('mobile-btn-admin-login');
-  const footerAdminBtn = document.getElementById('footer-admin-login-link');
+  // 9. Hidden Admin Access — Logo Multi-Click (5× in 3s) & Ctrl+Shift+A
+  setupHiddenAdminAccess();
+}
 
-  const handleAdminTrigger = () => {
-    if (store.state.adminAuth.isAuthenticated) {
+/* ==========================================================================
+   HIDDEN ADMIN ACCESS — NO VISIBLE INDICATION ON PUBLIC SITE
+   5× logo clicks within 3s  OR  Ctrl+Shift+A  → opens Admin Login modal.
+   Authentication is ALWAYS required. These triggers never bypass security.
+   ========================================================================== */
+function handleAdminTrigger() {
+  if (store.state.adminAuth.isAuthenticated) {
+    launchAdminPortal();
+  } else {
+    openAdminLoginModal(() => {
       launchAdminPortal();
-    } else {
-      openAdminLoginModal(() => {
-        launchAdminPortal();
-      });
+    });
+  }
+}
+
+function setupHiddenAdminAccess() {
+  // --- Logo multi-click trigger (5 clicks within 3 seconds) ---
+  const logoEl = document.getElementById('nav-brand-logo');
+  let clickCount = 0;
+  let clickResetTimer = null;
+
+  const onLogoClick = (e) => {
+    // Prevent normal anchor navigation only when accumulating clicks
+    // We still allow normal navigation after the sequence times out.
+    clickCount++;
+
+    // Clear any existing reset timer and start a fresh 3-second window
+    if (clickResetTimer) clearTimeout(clickResetTimer);
+    clickResetTimer = setTimeout(() => {
+      clickCount = 0;
+      clickResetTimer = null;
+    }, 3000);
+
+    if (clickCount >= 5) {
+      // Threshold reached — open admin access
+      e.preventDefault();
+      clickCount = 0;
+      clearTimeout(clickResetTimer);
+      clickResetTimer = null;
+      handleAdminTrigger();
     }
   };
 
-  if (openAdminBtn) openAdminBtn.addEventListener('click', handleAdminTrigger);
-  if (mobileAdminBtn) mobileAdminBtn.addEventListener('click', handleAdminTrigger);
-  if (footerAdminBtn) footerAdminBtn.addEventListener('click', handleAdminTrigger);
+  if (logoEl) {
+    logoEl.addEventListener('click', onLogoClick);
+    // Also support touch for mobile (touchend fires before click, use click for consistency)
+    logoEl.addEventListener('touchend', (e) => {
+      // touchend doesn't always fire a click; manually call onLogoClick
+      onLogoClick(e);
+    }, { passive: false });
+  }
+
+  // --- Keyboard shortcut: Ctrl + Shift + A ---
+  document.addEventListener('keydown', (e) => {
+    if (e.ctrlKey && e.shiftKey && e.key === 'A') {
+      e.preventDefault();
+      handleAdminTrigger();
+    }
+  });
 }
 
 /* ==========================================================================
