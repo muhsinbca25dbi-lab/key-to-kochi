@@ -54,7 +54,14 @@ function handleAuthApi(req, res, next) {
           normalizedEmail === 'admin@kochi.com' ||
           normalizedEmail === 'admin'
         );
-        const isAdminPass = (trimmedPass === 'kochi2025' || trimmedPass === 'admin' || trimmedPass === 'admin123');
+        const isAdminPass = (
+          trimmedPass === 'kochi2025' ||
+          trimmedPass.toLowerCase() === 'kochi2025' ||
+          trimmedPass === 'admin' ||
+          trimmedPass.toLowerCase() === 'admin' ||
+          trimmedPass === 'admin123' ||
+          trimmedPass.toLowerCase() === 'admin123'
+        );
 
         // Admin account
         if (isAdminUser && isAdminPass) {
