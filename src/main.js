@@ -627,15 +627,6 @@ function setupEventListeners() {
     });
   }
 
-  // 9. Admin Portal Open / Login Handlers
-  const openAdminBtn = document.getElementById('btn-nav-admin-login');
-  const mobileAdminBtn = document.getElementById('mobile-btn-admin-login');
-  const footerAdminBtn = document.getElementById('footer-admin-login-link');
-
-  if (openAdminBtn) openAdminBtn.addEventListener('click', handleAdminTrigger);
-  if (mobileAdminBtn) mobileAdminBtn.addEventListener('click', handleAdminTrigger);
-  if (footerAdminBtn) footerAdminBtn.addEventListener('click', handleAdminTrigger);
-
   // Hidden Admin Access — Logo Multi-Click (5× in 3s) & Ctrl+Shift+A
   setupHiddenAdminAccess();
 }
@@ -839,6 +830,12 @@ function setupHiddenAdminAccess() {
 
   // --- Keyboard shortcut: Ctrl + Shift + A ---
   document.addEventListener('keydown', (e) => {
+    // Ignore shortcut when typing in an input, textarea, or contenteditable field
+    const tag = (e.target && e.target.tagName) ? e.target.tagName.toUpperCase() : '';
+    const isEditable = tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' ||
+      (e.target && e.target.isContentEditable);
+    if (isEditable) return;
+
     if (e.ctrlKey && e.shiftKey && (e.key === 'A' || e.key === 'a')) {
       e.preventDefault();
       handleAdminTrigger();

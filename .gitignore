@@ -1,4 +1,9 @@
 node_modules/
 dist/
 .env
+.env.*
+!.env.example
 *.local
+.dev_last_otp.txt
+.dev_last_otp*
+server/node_modules/

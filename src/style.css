@@ -4850,31 +4850,14 @@ button, input, select, textarea {
 .aln-toggle-pass:hover { color: #d4af37; }
 .aln-toggle-pass:focus-visible { outline: 2px solid rgba(212,175,55,0.4); outline-offset: 2px; }
 
-/* Forgot password & Demo row */
+/* Forgot password row */
 .aln-forgot-row {
   display: flex;
-  justify-content: space-between;
+  justify-content: flex-end;
   align-items: center;
   margin-top: -6px;
 }
-.aln-demo-btn {
-  background: none;
-  border: none;
-  color: rgba(212,175,55,0.8);
-  font-size: 0.77rem;
-  cursor: pointer;
-  padding: 2px 0;
-  letter-spacing: 0.02em;
-  font-family: var(--font-main, sans-serif);
-  transition: all 0.18s;
-  text-decoration: underline;
-  text-decoration-color: rgba(212,175,55,0.3);
-  text-underline-offset: 2px;
-}
-.aln-demo-btn:hover {
-  color: #ffe066;
-  text-decoration-color: #ffe066;
-}
+
 .aln-forgot-btn {
   background: none;
   border: none;
@@ -4967,6 +4950,110 @@ button, input, select, textarea {
   color: rgba(100,112,140,0.65);
   margin: 20px 0 0;
   letter-spacing: 0.03em;
+}
+
+/* ── OTP Verification Step Styles ────────────────────────────────────────── */
+.aln-otp-input {
+  width: 100%;
+  padding: 13px 12px;
+  background: rgba(14,18,28,0.92);
+  border: 1.5px solid rgba(212,175,55,0.35);
+  border-radius: 12px;
+  color: #d4af37;
+  font-size: 1.85rem;
+  font-weight: 700;
+  letter-spacing: 0.5em;
+  text-align: center;
+  font-family: var(--font-mono, monospace);
+  outline: none;
+  box-shadow: 0 0 20px rgba(212,175,55,0.06), inset 0 2px 4px rgba(0,0,0,0.4);
+  transition: all 0.22s ease;
+  box-sizing: border-box;
+}
+.aln-otp-input:focus {
+  border-color: #f6d860;
+  box-shadow: 0 0 28px rgba(212,175,55,0.22), inset 0 2px 4px rgba(0,0,0,0.4);
+  background: rgba(18,24,38,0.98);
+}
+.aln-otp-input::placeholder {
+  color: rgba(212,175,55,0.25);
+  letter-spacing: 0.35em;
+}
+
+.aln-otp-meta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 0.76rem;
+  color: rgba(180,192,215,0.7);
+  padding: 0 2px;
+  margin-top: -2px;
+}
+.aln-otp-timer {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  color: #f59e0b;
+  font-weight: 600;
+}
+.aln-otp-timer svg { flex-shrink: 0; }
+
+.aln-resend-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  font-size: 0.78rem;
+  color: rgba(180,192,215,0.75);
+  margin-top: 4px;
+}
+.aln-resend-btn {
+  background: none;
+  border: none;
+  color: #d4af37;
+  cursor: pointer;
+  font-size: 0.78rem;
+  font-family: var(--font-main, sans-serif);
+  font-weight: 600;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  padding: 3px 0;
+  transition: all 0.18s;
+}
+.aln-resend-btn:hover:not(:disabled) {
+  color: #ffe066;
+}
+.aln-resend-btn:disabled {
+  color: rgba(180,192,215,0.45);
+  cursor: not-allowed;
+  text-decoration: none;
+}
+
+.aln-back-btn {
+  background: none;
+  border: none;
+  color: rgba(180,192,215,0.65);
+  font-size: 0.78rem;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  margin: 12px auto 0;
+  padding: 4px 8px;
+  font-family: var(--font-main, sans-serif);
+  transition: color 0.18s;
+}
+.aln-back-btn:hover {
+  color: #d4af37;
+}
+
+.aln-fade-swap {
+  animation: aln-swap-in 0.32s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+@keyframes aln-swap-in {
+  from { opacity: 0; transform: translateY(12px) scale(0.98); }
+  to   { opacity: 1; transform: translateY(0) scale(1); }
 }
 
 /* Mobile responsive */

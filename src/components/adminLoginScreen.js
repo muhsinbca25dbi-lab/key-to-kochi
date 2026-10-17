@@ -19,6 +19,14 @@ export class AdminLoginScreen {
     this._threeCleanup = null;
     this._passwordVisible = false;
     this._isLoading = false;
+    this._step = 'login'; // 'login' | 'otp'
+    this._preAuthToken = null;
+    this._maskedEmail = '';
+    this._emailSent = false;
+    this._deliveryMethod = 'dev_file';
+    this._otpCountdownTimer = null;
+    this._resendCountdownTimer = null;
+    this._resendSecondsLeft = 0;
     this._boundKeydown = this._handleKeydown.bind(this);
   }
 
@@ -29,13 +37,14 @@ export class AdminLoginScreen {
     } catch (err) {
       console.warn('Three.js background initialization bypassed:', err);
     }
-    this._attachEvents();
     document.addEventListener('keydown', this._boundKeydown);
     document.body.style.overflow = 'hidden';
   }
 
   unmount() {
     if (this._threeCleanup) this._threeCleanup();
+    if (this._otpCountdownTimer) clearInterval(this._otpCountdownTimer);
+    if (this._resendCountdownTimer) clearInterval(this._resendCountdownTimer);
     document.removeEventListener('keydown', this._boundKeydown);
     document.body.style.overflow = '';
     this.container.innerHTML = '';
@@ -61,70 +70,12 @@ export class AdminLoginScreen {
           <span>KEY TO KOCHI</span>
         </div>
         <div class="aln-panel-wrap">
-          <div class="aln-panel" id="aln-panel">
-            <div class="aln-panel-header">
-              <div class="aln-key-emblem">
-                <svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="#d4af37" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-                  <circle cx="7.5" cy="15.5" r="5.5"/>
-                  <path d="m21 2-9.6 9.6"/>
-                  <path d="m15.5 7.5 3 3L22 7l-3-3"/>
-                </svg>
-              </div>
-              <h1 class="aln-title">Admin Portal Authentication</h1>
-              <p class="aln-subtitle">KEY TO KOCHI &mdash; Secure Management Access</p>
-            </div>
-            <div class="aln-divider">
-              <span class="aln-divider-line"></span>
-              <svg width="13" height="13" viewBox="0 0 24 24" fill="#d4af37"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
-              <span class="aln-divider-line"></span>
-            </div>
-            <form id="aln-form" class="aln-form" novalidate autocomplete="off">
-              <div class="aln-field-group" id="aln-email-group">
-                <label class="aln-label" for="aln-email">
-                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect width="20" height="16" x="2" y="4" rx="2"/><path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"/></svg>
-                  Admin Email
-                </label>
-                <input type="email" id="aln-email" class="aln-input" placeholder="your@email.com" required autocomplete="username" spellcheck="false" />
-                <span class="aln-field-error" id="aln-email-error"></span>
-              </div>
-              <div class="aln-field-group" id="aln-pass-group">
-                <label class="aln-label" for="aln-pass">
-                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect width="18" height="11" x="3" y="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
-                  Password
-                </label>
-                <div class="aln-pass-wrap">
-                  <input type="password" id="aln-pass" class="aln-input" placeholder="Enter your password" required autocomplete="current-password" />
-                  <button type="button" class="aln-toggle-pass" id="aln-toggle-pass" tabindex="0" aria-label="Toggle password visibility">
-                    <svg class="eye-icon show-eye" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg>
-                    <svg class="eye-icon hide-eye" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="display:none"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg>
-                  </button>
-                </div>
-                <span class="aln-field-error" id="aln-pass-error"></span>
-              </div>
-              <div class="aln-forgot-row">
-                <button type="button" class="aln-demo-btn" id="aln-demo-btn" title="Quick fill demo credentials">Fill Demo Credentials</button>
-                <button type="button" class="aln-forgot-btn" id="aln-forgot-btn">Forgot password?</button>
-              </div>
-              <div class="aln-form-error" id="aln-form-error" style="display:none"></div>
-              <button type="submit" class="aln-submit-btn" id="aln-submit-btn">
-                <span class="aln-btn-text" id="aln-btn-text">
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><rect width="18" height="11" x="3" y="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
-                  Sign In to Dashboard
-                </span>
-                <span class="aln-btn-loading" id="aln-btn-loading" style="display:none">
-                  <svg class="aln-spinner" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 12a9 9 0 1 1-6.219-8.56"/></svg>
-                  Verifying&hellip;
-                </span>
-              </button>
-            </form>
-            <p class="aln-panel-footer">
-              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#6b7280" stroke-width="2"><rect width="18" height="11" x="3" y="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
-              Secured connection &nbsp;&middot;&nbsp; Authorised personnel only
-            </p>
-          </div>
+          <div class="aln-panel" id="aln-panel"></div>
         </div>
       </div>
     `;
+    this._attachShellEvents();
+    this._renderLoginPanelContent();
   }
 
   _initThreeScene() {
@@ -395,9 +346,8 @@ export class AdminLoginScreen {
     };
   }
 
-  _attachEvents() {
-    const $ = id => this.container.querySelector(id);
-    const closeBtn = $('#aln-close-btn');
+  _attachShellEvents() {
+    const closeBtn = this.container.querySelector('#aln-close-btn');
     if (closeBtn) {
       closeBtn.addEventListener('click', (e) => {
         e.preventDefault();
@@ -408,31 +358,294 @@ export class AdminLoginScreen {
         this._closeScreen();
       }, { passive: false });
     }
+  }
 
-    const demoBtn = $('#aln-demo-btn');
-    if (demoBtn) {
-      demoBtn.addEventListener('click', () => {
-        const emailInput = $('#aln-email');
-        const passInput = $('#aln-pass');
-        if (emailInput) emailInput.value = 'muhsinck19@gmail.com';
-        if (passInput) passInput.value = 'kochi2025';
-        this._clearErrors();
+  _renderLoginPanelContent() {
+    this._step = 'login';
+    if (this._otpCountdownTimer) clearInterval(this._otpCountdownTimer);
+    if (this._resendCountdownTimer) clearInterval(this._resendCountdownTimer);
+
+    const panel = this.container.querySelector('#aln-panel');
+    if (!panel) return;
+
+    panel.innerHTML = `
+      <div class="aln-fade-swap">
+        <div class="aln-panel-header">
+          <div class="aln-key-emblem">
+            <svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="#d4af37" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+              <circle cx="7.5" cy="15.5" r="5.5"/>
+              <path d="m21 2-9.6 9.6"/>
+              <path d="m15.5 7.5 3 3L22 7l-3-3"/>
+            </svg>
+          </div>
+          <h1 class="aln-title">Admin Portal Authentication</h1>
+          <p class="aln-subtitle">KEY TO KOCHI &mdash; Secure Management Access</p>
+        </div>
+        <div class="aln-divider">
+          <span class="aln-divider-line"></span>
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="#d4af37"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
+          <span class="aln-divider-line"></span>
+        </div>
+        <form id="aln-form" class="aln-form" novalidate autocomplete="off">
+          <div class="aln-field-group" id="aln-email-group">
+            <label class="aln-label" for="aln-email">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect width="20" height="16" x="2" y="4" rx="2"/><path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"/></svg>
+              Admin Email
+            </label>
+            <input type="email" id="aln-email" class="aln-input" placeholder="admin@keytokochi.com" required autocomplete="username" spellcheck="false" />
+            <span class="aln-field-error" id="aln-email-error"></span>
+          </div>
+          <div class="aln-field-group" id="aln-pass-group">
+            <label class="aln-label" for="aln-pass">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect width="18" height="11" x="3" y="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+              Password
+            </label>
+            <div class="aln-pass-wrap">
+              <input type="password" id="aln-pass" class="aln-input" placeholder="Enter your password" required autocomplete="current-password" />
+              <button type="button" class="aln-toggle-pass" id="aln-toggle-pass" tabindex="0" aria-label="Toggle password visibility">
+                <svg class="eye-icon show-eye" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg>
+                <svg class="eye-icon hide-eye" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="display:none"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg>
+              </button>
+            </div>
+            <span class="aln-field-error" id="aln-pass-error"></span>
+          </div>
+          <div class="aln-forgot-row">
+            <button type="button" class="aln-forgot-btn" id="aln-forgot-btn">Forgot password?</button>
+          </div>
+          <div class="aln-form-error" id="aln-form-error" style="display:none"></div>
+          <button type="submit" class="aln-submit-btn" id="aln-submit-btn">
+            <span class="aln-btn-text" id="aln-btn-text">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><rect width="18" height="11" x="3" y="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+              Sign In to Dashboard
+            </span>
+            <span class="aln-btn-loading" id="aln-btn-loading" style="display:none">
+              <svg class="aln-spinner" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 12a9 9 0 1 1-6.219-8.56"/></svg>
+              Verifying&hellip;
+            </span>
+          </button>
+        </form>
+        <p class="aln-panel-footer">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#6b7280" stroke-width="2"><rect width="18" height="11" x="3" y="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+          Secured connection &nbsp;&middot;&nbsp; Authorised personnel only
+        </p>
+      </div>
+    `;
+
+    this._attachLoginEvents();
+  }
+
+  _attachLoginEvents() {
+    const $ = id => this.container.querySelector(id);
+    const passInput = $('#aln-pass');
+    const toggleBtn = $('#aln-toggle-pass');
+    if (toggleBtn && passInput) {
+      const showEye = toggleBtn.querySelector('.show-eye');
+      const hideEye = toggleBtn.querySelector('.hide-eye');
+      toggleBtn.addEventListener('click', () => {
+        this._passwordVisible = !this._passwordVisible;
+        passInput.type = this._passwordVisible ? 'text' : 'password';
+        showEye.style.display = this._passwordVisible ? 'none' : '';
+        hideEye.style.display = this._passwordVisible ? '' : 'none';
       });
     }
 
-    const passInput = $('#aln-pass');
-    const toggleBtn = $('#aln-toggle-pass');
-    const showEye = toggleBtn.querySelector('.show-eye');
-    const hideEye = toggleBtn.querySelector('.hide-eye');
-    toggleBtn.addEventListener('click', () => {
-      this._passwordVisible = !this._passwordVisible;
-      passInput.type = this._passwordVisible ? 'text' : 'password';
-      showEye.style.display = this._passwordVisible ? 'none' : '';
-      hideEye.style.display = this._passwordVisible ? '' : 'none';
-    });
+    const forgotBtn = $('#aln-forgot-btn');
+    if (forgotBtn) {
+      forgotBtn.addEventListener('click', () => this._showForgotMessage());
+    }
 
-    $('#aln-forgot-btn').addEventListener('click', () => this._showForgotMessage());
-    $('#aln-form').addEventListener('submit', e => { e.preventDefault(); this._handleSubmit(); });
+    const form = $('#aln-form');
+    if (form) {
+      form.addEventListener('submit', e => {
+        e.preventDefault();
+        this._handleSubmit();
+      });
+    }
+
+    const emailInput = $('#aln-email');
+    if (emailInput) {
+      setTimeout(() => emailInput.focus(), 80);
+    }
+  }
+
+  _renderOtpPanelContent(expiresInSeconds = 300) {
+    this._step = 'otp';
+    const panel = this.container.querySelector('#aln-panel');
+    if (!panel) return;
+
+    panel.innerHTML = `
+      <div class="aln-fade-swap">
+        <div class="aln-panel-header">
+          <div class="aln-key-emblem">
+            <svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="#d4af37" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+              <path d="m9 12 2 2 4-4"/>
+            </svg>
+          </div>
+          <h1 class="aln-title">Two-Factor Authentication</h1>
+          <p class="aln-subtitle" id="aln-otp-subtitle">${this._getOtpSubtitleHTML()}</p>
+        </div>
+        <div class="aln-divider">
+          <span class="aln-divider-line"></span>
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="#d4af37"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
+          <span class="aln-divider-line"></span>
+        </div>
+        <form id="aln-otp-form" class="aln-form" novalidate autocomplete="off">
+          <div class="aln-field-group" id="aln-otp-group">
+            <label class="aln-label" for="aln-otp-input">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect width="18" height="11" x="3" y="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+              Verification Code
+            </label>
+            <input
+              type="text"
+              id="aln-otp-input"
+              class="aln-otp-input"
+              maxlength="6"
+              inputmode="numeric"
+              pattern="[0-9]*"
+              autocomplete="one-time-code"
+              placeholder="&bull; &bull; &bull; &bull; &bull; &bull;"
+              autofocus
+            />
+            <div class="aln-otp-meta">
+              <span class="aln-otp-timer" id="aln-otp-timer">
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+                Expires in <strong id="aln-countdown-text">05:00</strong>
+              </span>
+              <span>Single use only</span>
+            </div>
+            <span class="aln-field-error" id="aln-otp-field-error"></span>
+          </div>
+
+          <div class="aln-resend-row">
+            <span>Didn't receive code?</span>
+            <button type="button" id="aln-resend-btn" class="aln-resend-btn" disabled>Resend Code (30s)</button>
+          </div>
+
+          <div class="aln-form-error" id="aln-otp-error" style="display:none"></div>
+
+          <button type="submit" class="aln-submit-btn" id="aln-otp-submit-btn">
+            <span class="aln-btn-text" id="aln-otp-btn-text">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+              Verify & Enter Dashboard
+            </span>
+            <span class="aln-btn-loading" id="aln-otp-btn-loading" style="display:none">
+              <svg class="aln-spinner" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 12a9 9 0 1 1-6.219-8.56"/></svg>
+              Verifying Code&hellip;
+            </span>
+          </button>
+
+          <button type="button" class="aln-back-btn" id="aln-back-btn">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/></svg>
+            Back to Login
+          </button>
+        </form>
+        <p class="aln-panel-footer">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#6b7280" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+          Two-step verification &nbsp;&middot;&nbsp; 256-bit encryption
+        </p>
+      </div>
+    `;
+
+    this._attachOtpEvents();
+    this._startOtpCountdown(expiresInSeconds);
+    this._startResendCountdown(30);
+  }
+
+  _attachOtpEvents() {
+    const otpInput = this.container.querySelector('#aln-otp-input');
+    const otpForm = this.container.querySelector('#aln-otp-form');
+    const resendBtn = this.container.querySelector('#aln-resend-btn');
+    const backBtn = this.container.querySelector('#aln-back-btn');
+
+    if (otpInput) {
+      otpInput.addEventListener('input', (e) => {
+        e.target.value = e.target.value.replace(/[^0-9]/g, '').slice(0, 6);
+        const err = this.container.querySelector('#aln-otp-error');
+        if (err) err.style.display = 'none';
+        const group = this.container.querySelector('#aln-otp-group');
+        if (group) group.classList.remove('has-error');
+
+        // Auto-submit when all 6 digits are entered
+        if (e.target.value.length === 6) {
+          this._handleOtpSubmit();
+        }
+      });
+      setTimeout(() => otpInput.focus(), 100);
+    }
+
+    if (otpForm) {
+      otpForm.addEventListener('submit', (e) => {
+        e.preventDefault();
+        this._handleOtpSubmit();
+      });
+    }
+
+    if (resendBtn) {
+      resendBtn.addEventListener('click', () => {
+        this._handleResendOtp();
+      });
+    }
+
+    if (backBtn) {
+      backBtn.addEventListener('click', () => {
+        this._renderLoginPanelContent();
+      });
+    }
+  }
+
+  _startOtpCountdown(seconds = 300) {
+    if (this._otpCountdownTimer) clearInterval(this._otpCountdownTimer);
+    let remaining = seconds;
+    const textEl = this.container.querySelector('#aln-countdown-text');
+
+    const updateDisplay = () => {
+      if (!textEl) return;
+      const m = Math.floor(remaining / 60);
+      const s = remaining % 60;
+      textEl.textContent = `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
+    };
+
+    updateDisplay();
+
+    this._otpCountdownTimer = setInterval(() => {
+      remaining--;
+      if (remaining <= 0) {
+        clearInterval(this._otpCountdownTimer);
+        this._showOtpError('Verification code has expired. Please request a new code.');
+        if (textEl) textEl.textContent = '00:00';
+      } else {
+        updateDisplay();
+      }
+    }, 1000);
+  }
+
+  _startResendCountdown(seconds = 30) {
+    if (this._resendCountdownTimer) clearInterval(this._resendCountdownTimer);
+    this._resendSecondsLeft = seconds;
+    const btn = this.container.querySelector('#aln-resend-btn');
+
+    if (btn) {
+      btn.disabled = true;
+      btn.textContent = `Resend Code (${this._resendSecondsLeft}s)`;
+    }
+
+    this._resendCountdownTimer = setInterval(() => {
+      this._resendSecondsLeft--;
+      const curBtn = this.container.querySelector('#aln-resend-btn');
+      if (!curBtn) {
+        clearInterval(this._resendCountdownTimer);
+        return;
+      }
+
+      if (this._resendSecondsLeft <= 0) {
+        clearInterval(this._resendCountdownTimer);
+        curBtn.disabled = false;
+        curBtn.textContent = 'Resend Code';
+      } else {
+        curBtn.textContent = `Resend Code (${this._resendSecondsLeft}s)`;
+      }
+    }, 1000);
   }
 
   _closeScreen() {
@@ -445,7 +658,7 @@ export class AdminLoginScreen {
     const el = this.container.querySelector('#aln-form-error');
     if (!el) return;
     el.style.display = 'flex';
-    el.innerHTML = '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#f59e0b" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><circle cx="12" cy="16" r="1" fill="#f59e0b"/></svg> Admin Access: <strong>muhsinck19@gmail.com</strong> (or <strong>admin@keytokochi.com</strong>) &bull; Password: <strong>kochi2025</strong>';
+    el.innerHTML = '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#f59e0b" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><circle cx="12" cy="16" r="1" fill="#f59e0b"/></svg> Password reset requests are managed securely by the administrator. Contact your platform administrator for assistance.';
     el.className = 'aln-form-error aln-form-warn';
   }
 
@@ -467,8 +680,20 @@ export class AdminLoginScreen {
     const btnLoading = this.container.querySelector('#aln-btn-loading');
     if (!btn) return;
     btn.disabled = isLoading;
-    btnText.style.display = isLoading ? 'none' : 'flex';
-    btnLoading.style.display = isLoading ? 'flex' : 'none';
+    if (btnText) btnText.style.display = isLoading ? 'none' : 'flex';
+    if (btnLoading) btnLoading.style.display = isLoading ? 'flex' : 'none';
+    btn.classList.toggle('loading', isLoading);
+  }
+
+  _setOtpLoading(isLoading) {
+    this._isLoading = isLoading;
+    const btn = this.container.querySelector('#aln-otp-submit-btn');
+    const btnText = this.container.querySelector('#aln-otp-btn-text');
+    const btnLoading = this.container.querySelector('#aln-otp-btn-loading');
+    if (!btn) return;
+    btn.disabled = isLoading;
+    if (btnText) btnText.style.display = isLoading ? 'none' : 'flex';
+    if (btnLoading) btnLoading.style.display = isLoading ? 'flex' : 'none';
     btn.classList.toggle('loading', isLoading);
   }
 
@@ -487,11 +712,36 @@ export class AdminLoginScreen {
     }
   }
 
+  _showOtpError(message) {
+    const el = this.container.querySelector('#aln-otp-error');
+    if (!el) return;
+    el.style.display = 'flex';
+    el.className = 'aln-form-error aln-form-err-active';
+    el.innerHTML = `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#f87171" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg> ${message}`;
+    const panel = this.container.querySelector('#aln-panel');
+    if (panel) {
+      panel.classList.remove('aln-shake');
+      void panel.offsetWidth;
+      panel.classList.add('aln-shake');
+      setTimeout(() => panel.classList.remove('aln-shake'), 600);
+    }
+  }
+
+  _getOtpSubtitleHTML() {
+    if (this._emailSent) {
+      return `Enter the 6-digit verification code sent to <strong style="color:#d4af37">${this._maskedEmail}</strong>`;
+    }
+    return `<strong>Development Testing Mode</strong> (Email unconfigured)<br><span style="font-size:0.75rem;color:rgba(180,192,215,0.85)">Code saved to local project file: <code style="color:#f6d860;background:rgba(212,175,55,0.12);padding:2px 6px;border-radius:4px;border:1px solid rgba(212,175,55,0.25)">.dev_last_otp.txt</code></span>`;
+  }
+
   async _handleSubmit() {
     if (this._isLoading) return;
     this._clearErrors();
-    const email = (this.container.querySelector('#aln-email').value || '').trim();
-    const pass = (this.container.querySelector('#aln-pass').value || '').trim();
+    const emailEl = this.container.querySelector('#aln-email');
+    const passEl = this.container.querySelector('#aln-pass');
+    const email = (emailEl ? emailEl.value : '').trim();
+    const pass = (passEl ? passEl.value : '').trim();
+
     let valid = true;
     if (!email) {
       this.container.querySelector('#aln-email-group').classList.add('has-error');
@@ -512,25 +762,111 @@ export class AdminLoginScreen {
     this._setLoading(true);
     try {
       const res = await authService.login(email, pass);
-      if (res.ok && res.user && res.user.role === 'ADMIN') {
-        const panel = this.container.querySelector('#aln-panel');
-        if (panel) panel.classList.add('aln-success-flash');
-        setTimeout(() => {
-          this._setLoading(false);
-          this.unmount();
-          if (this.onSuccess) this.onSuccess(res.user);
-        }, 380);
+      this._setLoading(false);
+
+      if (res.ok && res.requiresOtp) {
+        this._preAuthToken = res.preAuthToken;
+        this._maskedEmail = res.maskedEmail || email;
+        this._emailSent = !!res.emailSent;
+        this._deliveryMethod = res.deliveryMethod || (res.emailSent ? 'email' : 'dev_file');
+        this._renderOtpPanelContent(res.expiresInSeconds || 300);
       } else {
-        this._setLoading(false);
-        const passInput = this.container.querySelector('#aln-pass');
-        if (passInput) passInput.value = '';
+        if (passEl) passEl.value = '';
         this._showFormError(res.error || 'Invalid email or password.');
       }
     } catch (err) {
       this._setLoading(false);
-      const passInput = this.container.querySelector('#aln-pass');
-      if (passInput) passInput.value = '';
+      if (passEl) passEl.value = '';
       this._showFormError('Unable to connect to the authentication service. Please try again.');
     }
   }
+
+  async _handleOtpSubmit() {
+    if (this._isLoading) return;
+    const otpInput = this.container.querySelector('#aln-otp-input');
+    const otp = (otpInput ? otpInput.value : '').trim().replace(/\s/g, '');
+
+    if (!otp) {
+      this._showOtpError('Please enter the 6-digit verification code.');
+      if (otpInput) otpInput.focus();
+      return;
+    }
+    if (!/^\d{6}$/.test(otp)) {
+      this._showOtpError('Please enter a valid 6-digit code.');
+      if (otpInput) otpInput.focus();
+      return;
+    }
+
+    this._setOtpLoading(true);
+    try {
+      const res = await authService.verifyOtp(this._preAuthToken, otp);
+
+      if (res.ok && res.user && res.user.role === 'ADMIN') {
+        const panel = this.container.querySelector('#aln-panel');
+        if (panel) panel.classList.add('aln-success-flash');
+        if (this._otpCountdownTimer) clearInterval(this._otpCountdownTimer);
+        if (this._resendCountdownTimer) clearInterval(this._resendCountdownTimer);
+        setTimeout(() => {
+          this._setOtpLoading(false);
+          this.unmount();
+          if (this.onSuccess) this.onSuccess(res.user);
+        }, 380);
+      } else {
+        this._setOtpLoading(false);
+        if (otpInput) {
+          otpInput.value = '';
+          otpInput.focus();
+        }
+        this._showOtpError(res.error || 'Invalid verification code.');
+
+        if (res.attemptsLeft === 0) {
+          setTimeout(() => {
+            this._renderLoginPanelContent();
+            this._showFormError('Verification attempts exceeded. Please sign in again.');
+          }, 1600);
+        }
+      }
+    } catch (err) {
+      this._setOtpLoading(false);
+      this._showOtpError('Unable to connect to the authentication service. Please try again.');
+    }
+  }
+
+  async _handleResendOtp() {
+    if (!this._preAuthToken) return;
+    const resendBtn = this.container.querySelector('#aln-resend-btn');
+    if (resendBtn) resendBtn.disabled = true;
+
+    try {
+      const res = await authService.sendOtp(this._preAuthToken);
+      if (res.ok) {
+        this._emailSent = !!res.emailSent;
+        this._deliveryMethod = res.deliveryMethod || (res.emailSent ? 'email' : 'dev_file');
+        this._startResendCountdown(30);
+        this._startOtpCountdown(res.expiresInSeconds || 300);
+
+        const subEl = this.container.querySelector('#aln-otp-subtitle');
+        if (subEl) subEl.innerHTML = this._getOtpSubtitleHTML();
+
+        const el = this.container.querySelector('#aln-otp-error');
+        if (el) {
+          el.style.display = 'flex';
+          el.className = 'aln-form-error aln-form-warn';
+          if (res.emailSent) {
+            el.innerHTML = '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#f59e0b" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="m9 12 2 2 4-4"/></svg> A new verification code has been dispatched to your email.';
+          } else {
+            el.innerHTML = '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#f59e0b" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="m9 12 2 2 4-4"/></svg> Development Mode: New code generated in <code>.dev_last_otp.txt</code>.';
+          }
+        }
+      } else {
+        this._showOtpError(res.error || 'Failed to resend code. Please try again.');
+        if (resendBtn) resendBtn.disabled = false;
+      }
+    } catch (err) {
+      this._showOtpError('Failed to send verification code. Please try again.');
+      if (resendBtn) resendBtn.disabled = false;
+    }
+  }
 }
+
+

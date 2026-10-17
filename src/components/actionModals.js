@@ -221,22 +221,19 @@ export function openAdminLoginModal(onLoginSuccess) {
         <form id="admin-login-form" class="action-modal-form">
           <div class="form-field full-width">
             <label>Admin Email</label>
-            <input type="email" id="login-email" required value="muhsinck19@gmail.com" />
+            <input type="email" id="login-email" required placeholder="admin@keytokochi.com" autocomplete="username" />
           </div>
 
           <div class="form-field full-width">
             <label>Password</label>
-            <input type="password" id="login-pass" required value="kochi2025" />
-          </div>
-
-          <div class="login-quick-hint">
-            <span>Admin Credentials: <strong>muhsinck19@gmail.com</strong> / <strong>kochi2025</strong></span>
+            <input type="password" id="login-pass" required placeholder="Enter password" autocomplete="current-password" />
           </div>
 
           <div class="modal-form-actions">
-            <button type="submit" class="btn-gold-full">Sign In to Dashboard &rarr;</button>
+            <button type="submit" class="btn-gold-full">Sign In &rarr;</button>
           </div>
         </form>
+
       </div>
     </div>
   `;

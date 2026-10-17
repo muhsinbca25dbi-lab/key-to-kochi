@@ -49,12 +49,12 @@ class Store {
             parsed.submissions = INITIAL_OWNER_SUBMISSIONS;
           }
 
-          if (!parsed.adminAuth || typeof parsed.adminAuth !== 'object') {
-            parsed.adminAuth = {
-              isAuthenticated: false,
-              user: null
-            };
-          }
+          // Always reset adminAuth on load — session validity is managed by
+          // authService via sessionStorage, not persisted in the data store.
+          parsed.adminAuth = {
+            isAuthenticated: false,
+            user: null
+          };
 
           return parsed;
         }
