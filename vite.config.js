@@ -209,6 +209,173 @@ async function sendAdminSubscriberNotification(env, subscriberEmail, totalCount,
 }
 
 // ---------------------------------------------------------------------------
+// Send immediate property alert email to subscriber
+// ---------------------------------------------------------------------------
+async function sendPropertyAlertEmail(env, subscriberEmail, property, baseUrl) {
+  const { KTK_SMTP_HOST: host, KTK_SMTP_PORT: port = '587',
+          KTK_SMTP_USER: user, KTK_SMTP_PASS: pass,
+          KTK_SMTP_FROM: from, KTK_SMTP_SECURE: secureStr } = env;
+
+  const isRealSmtp = host && user && pass && pass !== 'your_gmail_app_password_here';
+  if (!isRealSmtp) {
+    throw new Error('SMTP email service is not configured. Please set KTK_SMTP_USER and KTK_SMTP_PASS in your .env file.');
+  }
+
+  const nodemailer = (await import('nodemailer')).default;
+  const transport = nodemailer.createTransport({
+    host, port: parseInt(port, 10),
+    secure: secureStr === 'true',
+    auth: { user, pass },
+    tls: { rejectUnauthorized: false }
+  });
+
+  const rentFormatted = Number(property.rent || 0).toLocaleString('en-IN');
+  const depositFormatted = Number(property.deposit || 0).toLocaleString('en-IN');
+  const viewUrl = `${baseUrl.replace(/\/$/, '')}/?prop=${encodeURIComponent(property.id)}`;
+  const unsubUrl = `${baseUrl.replace(/\/$/, '')}/api/unsubscribe?email=${encodeURIComponent(subscriberEmail)}`;
+  const coverImage = (property.images && property.images.length > 0) ? property.images[0] : '';
+  const amenitiesList = (property.facilities && property.facilities.length > 0)
+    ? property.facilities.join(', ')
+    : 'Full premium amenities included';
+
+  const textBody = [
+    'NEW PROPERTY JUST LISTED IN KOCHI!',
+    '==================================',
+    '',
+    `Title: ${property.title}`,
+    `Location: ${property.location}${property.address ? ' (' + property.address + ')' : ''}`,
+    `Monthly Rent: ₹${rentFormatted} / month`,
+    `Security Deposit: ₹${depositFormatted}`,
+    `Configuration: ${property.bhk || 'N/A'}`,
+    `Furnishing: ${property.furnishing || 'N/A'}`,
+    `Property Type: ${property.type || 'Apartment'}`,
+    `Area: ${property.size ? property.size + ' sq.ft' : 'Spacious'}`,
+    `Bedrooms / Bathrooms: ${property.bedrooms || 1} Bed / ${property.bathrooms || 1} Bath`,
+    `Amenities: ${amenitiesList}`,
+    '',
+    'Description:',
+    property.description || 'Verified luxury rental listing on KEY TO KOCHI.',
+    '',
+    'VIEW FULL DETAILS & SCHEDULE A TOUR:',
+    viewUrl,
+    '',
+    '----------------------------------',
+    'To unsubscribe from Exclusive Property Alerts:',
+    unsubUrl,
+    '',
+    '-- KEY TO KOCHI | Luxury Rentals & Living in Kochi'
+  ].join('\n');
+
+  const facilitiesBadgesHtml = (property.facilities || []).map(f =>
+    `<span style="display:inline-block;background:rgba(212,175,55,.12);border:1px solid rgba(212,175,55,.25);color:#d4af37;padding:4px 10px;border-radius:20px;font-size:11px;margin:3px 4px 3px 0;">✓ ${f}</span>`
+  ).join('');
+
+  const photoHtml = coverImage ? `
+    <div style="margin:20px 0;border-radius:12px;overflow:hidden;border:1px solid rgba(212,175,55,.25);max-height:280px;">
+      <img src="${coverImage}" alt="${property.title}" style="width:100%;height:auto;display:block;max-height:280px;object-fit:cover;" />
+    </div>
+  ` : '';
+
+  const htmlBody = `
+    <div style="font-family:'Segoe UI',Roboto,Helvetica,Arial,sans-serif;background:#06080d;padding:40px 16px;color:#f8fafc;margin:0;">
+      <div style="max-width:580px;margin:auto;background:#0d111a;border-radius:16px;border:1px solid rgba(212,175,55,.3);box-shadow:0 12px 40px rgba(0,0,0,.6);overflow:hidden;">
+        
+        <!-- Header Banner -->
+        <div style="padding:28px 32px;background:linear-gradient(180deg,#121824 0%,#0d111a 100%);border-bottom:1px solid rgba(212,175,55,.2);text-align:center;">
+          <p style="font-size:10px;letter-spacing:3px;color:#d4af37;margin:0 0 4px;font-weight:700;">KEY TO KOCHI</p>
+          <p style="font-size:11px;color:#8492a6;margin:0 0 16px;letter-spacing:1px;">LUXURY RENTALS &bull; EXCLUSIVE PROPERTY ALERT</p>
+          <div style="display:inline-block;background:rgba(212,175,55,.15);border:1px solid #d4af37;color:#f6d860;padding:4px 14px;border-radius:20px;font-size:11px;font-weight:600;letter-spacing:1px;">
+            🔔 NEW LISTING JUST PUBLISHED
+          </div>
+        </div>
+
+        <div style="padding:32px;">
+          <!-- Property Title & Location -->
+          <h1 style="font-size:22px;color:#ffffff;margin:0 0 6px;line-height:1.3;font-weight:700;">${property.title}</h1>
+          <p style="color:#d4af37;font-size:14px;margin:0 0 20px;font-weight:500;">
+            📍 ${property.location}${property.address ? ' &bull; ' + property.address : ''}
+          </p>
+
+          ${photoHtml}
+
+          <!-- Pricing & Core Specs Table -->
+          <div style="background:rgba(212,175,55,.05);border:1px solid rgba(212,175,55,.2);border-radius:12px;padding:20px;margin-bottom:24px;">
+            <div style="display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid rgba(212,175,55,.15);padding-bottom:14px;margin-bottom:14px;">
+              <div>
+                <span style="font-size:11px;color:#8492a6;display:block;text-transform:uppercase;letter-spacing:1px;">Monthly Rent</span>
+                <span style="font-size:24px;font-weight:800;color:#d4af37;">₹${rentFormatted}</span><span style="color:#8492a6;font-size:12px;"> /month</span>
+              </div>
+              <div style="text-align:right;">
+                <span style="font-size:11px;color:#8492a6;display:block;text-transform:uppercase;letter-spacing:1px;">Deposit</span>
+                <span style="font-size:16px;font-weight:600;color:#cbd5e1;">₹${depositFormatted}</span>
+              </div>
+            </div>
+
+            <table style="width:100%;font-size:13px;color:#cbd5e1;border-collapse:collapse;">
+              <tr>
+                <td style="padding:6px 0;color:#8492a6;">Configuration:</td>
+                <td style="padding:6px 0;font-weight:600;color:#ffffff;text-align:right;">${property.bhk || 'N/A'}</td>
+              </tr>
+              <tr>
+                <td style="padding:6px 0;color:#8492a6;">Furnishing:</td>
+                <td style="padding:6px 0;font-weight:600;color:#ffffff;text-align:right;">${property.furnishing || 'N/A'}</td>
+              </tr>
+              <tr>
+                <td style="padding:6px 0;color:#8492a6;">Property Type:</td>
+                <td style="padding:6px 0;font-weight:600;color:#ffffff;text-align:right;">${property.type || 'Apartment'}</td>
+              </tr>
+              <tr>
+                <td style="padding:6px 0;color:#8492a6;">Built-up Area:</td>
+                <td style="padding:6px 0;font-weight:600;color:#ffffff;text-align:right;">${property.size ? property.size + ' sq.ft' : 'Spacious'}</td>
+              </tr>
+            </table>
+          </div>
+
+          <!-- Amenities -->
+          ${property.facilities && property.facilities.length > 0 ? `
+            <div style="margin-bottom:24px;">
+              <p style="font-size:12px;font-weight:700;color:#cbd5e1;text-transform:uppercase;letter-spacing:1px;margin:0 0 10px;">Available Amenities</p>
+              <div>${facilitiesBadgesHtml}</div>
+            </div>
+          ` : ''}
+
+          <!-- View Property CTA Button -->
+          <div style="text-align:center;margin:32px 0 24px;">
+            <a href="${viewUrl}" style="display:inline-block;background:linear-gradient(135deg,#d4af37 0%,#aa820a 100%);color:#07090e;font-weight:700;font-size:15px;padding:14px 36px;border-radius:30px;text-decoration:none;letter-spacing:.5px;box-shadow:0 6px 20px rgba(212,175,55,.35);">
+              View Property Details &rarr;
+            </a>
+            <p style="color:#64748b;font-size:11px;margin:10px 0 0;">Opens live property details and tour scheduler on KEY TO KOCHI</p>
+          </div>
+
+        </div>
+
+        <!-- Footer & Unsubscribe -->
+        <div style="padding:24px 32px;background:#090c13;border-top:1px solid rgba(255,255,255,.05);text-align:center;">
+          <p style="color:#64748b;font-size:11px;line-height:1.6;margin:0 0 10px;">
+            You are receiving this exclusive alert because <strong style="color:#8492a6;">${subscriberEmail}</strong> is subscribed to Exclusive Property Alerts on Key to Kochi.
+          </p>
+          <p style="margin:0;font-size:11px;">
+            <a href="${unsubUrl}" style="color:#d4af37;text-decoration:underline;">Unsubscribe from Property Alerts</a> &bull;
+            <a href="${baseUrl}" style="color:#8492a6;text-decoration:none;">Visit Key to Kochi</a>
+          </p>
+        </div>
+
+      </div>
+    </div>
+  `;
+
+  await transport.sendMail({
+    from: from || `KEY TO KOCHI <${user}>`,
+    to: subscriberEmail,
+    subject: 'New Property Just Listed in Kochi!',
+    text: textBody,
+    html: htmlBody
+  });
+
+  return true;
+}
+
+// ---------------------------------------------------------------------------
 // Main plugin factory
 // ---------------------------------------------------------------------------
 export default defineConfig(() => {
@@ -441,6 +608,226 @@ export default defineConfig(() => {
 
       }).catch(() => json(res, 400, { ok: false, error: 'Invalid request body.' }));
       return;
+    }
+
+    // ── Exclusive Property Alerts — Immediate Notification Dispatch ──────────
+    if (url === '/api/alerts/notify-subscribers' && req.method === 'POST') {
+      readBody(req).then(async body => {
+        const property = body.property;
+        const baseUrl = body.baseUrl || 'http://localhost:5173';
+
+        // 1. Never send alerts for drafts or unpublished properties
+        if (!property || property.published === false) {
+          return json(res, 200, {
+            ok: false,
+            skipped: true,
+            sentCount: 0,
+            message: 'Property is saved as draft or unpublished. Alerts are only sent for published listings.'
+          });
+        }
+
+        if (!property.id || !property.title) {
+          return json(res, 400, { ok: false, error: 'Invalid property data: ID and title are required.' });
+        }
+
+        // 2. Load registered active subscribers
+        const dataDir = join(process.cwd(), 'server', 'data');
+        const subFile = join(dataDir, 'subscribers.json');
+        let subscribers = [];
+        try {
+          if (existsSync(subFile)) {
+            const raw = JSON.parse(readFileSync(subFile, 'utf8'));
+            if (Array.isArray(raw)) subscribers = raw;
+          }
+        } catch (e) {
+          console.error('[KTK Alert] Failed to read subscriber list:', e.message);
+        }
+
+        const activeSubscribers = subscribers.filter(s => s && s.email && s.active !== false);
+
+        if (activeSubscribers.length === 0) {
+          return json(res, 200, {
+            ok: true,
+            sentCount: 0,
+            totalSubscribers: 0,
+            message: 'No registered subscribers found to notify.'
+          });
+        }
+
+        // 3. Load alert history to prevent duplicate emails for the same property
+        const historyFile = join(dataDir, 'alert_history.json');
+        let alertHistory = [];
+        try {
+          if (existsSync(historyFile)) {
+            const rawH = JSON.parse(readFileSync(historyFile, 'utf8'));
+            if (Array.isArray(rawH)) alertHistory = rawH;
+          }
+        } catch (e) {
+          console.error('[KTK Alert] Failed to read alert history:', e.message);
+        }
+
+        const alreadyNotified = new Set(
+          alertHistory
+            .filter(h => h.propertyId === property.id)
+            .map(h => (h.email || '').toLowerCase())
+        );
+
+        const eligibleSubscribers = activeSubscribers.filter(
+          s => !alreadyNotified.has(s.email.toLowerCase())
+        );
+
+        if (eligibleSubscribers.length === 0) {
+          return json(res, 200, {
+            ok: true,
+            sentCount: 0,
+            skippedCount: activeSubscribers.length,
+            message: 'All registered subscribers have already received an alert for this property.'
+          });
+        }
+
+        // 4. Check SMTP configuration
+        const { KTK_SMTP_HOST: host, KTK_SMTP_USER: user, KTK_SMTP_PASS: pass } = env;
+        const isRealSmtp = host && user && pass && pass !== 'your_gmail_app_password_here';
+
+        if (!isRealSmtp) {
+          console.warn('[KTK Alert] SMTP service not configured. Alert email delivery skipped.');
+          return json(res, 200, {
+            ok: false,
+            notConfigured: true,
+            sentCount: 0,
+            error: 'SMTP email service is not configured. To send live property alerts, configure KTK_SMTP_USER and KTK_SMTP_PASS in your .env file.',
+            requiredConfig: {
+              KTK_SMTP_HOST: 'smtp.gmail.com (or your SMTP host)',
+              KTK_SMTP_PORT: '587',
+              KTK_SMTP_USER: 'Your email address',
+              KTK_SMTP_PASS: 'Your 16-character Google App Password',
+              KTK_SMTP_FROM: '"KEY TO KOCHI <your_email@gmail.com>"'
+            }
+          });
+        }
+
+        // 5. Send notifications to eligible subscribers & track confirmations
+        const results = { sent: 0, failed: 0, errors: [] };
+        for (const sub of eligibleSubscribers) {
+          try {
+            await sendPropertyAlertEmail(env, sub.email, property, baseUrl);
+            results.sent++;
+            alertHistory.push({
+              propertyId: property.id,
+              email: sub.email.toLowerCase(),
+              sentAt: new Date().toISOString()
+            });
+            console.log(`[KTK Alert] ✅ Property alert sent to ${sub.email} for property: ${property.title}`);
+          } catch (err) {
+            results.failed++;
+            results.errors.push({ email: sub.email, error: err.message });
+            console.error(`[KTK Alert] ❌ Failed to send alert to ${sub.email}:`, err.message);
+          }
+        }
+
+        // Persist history only for confirmed sent deliveries
+        if (results.sent > 0) {
+          try {
+            if (!existsSync(dataDir)) mkdirSync(dataDir, { recursive: true });
+            writeFileSync(historyFile, JSON.stringify(alertHistory, null, 2), 'utf8');
+          } catch (e) {
+            console.error('[KTK Alert] Failed to persist alert history:', e.message);
+          }
+        }
+
+        if (results.sent === 0 && results.failed > 0) {
+          return json(res, 502, {
+            ok: false,
+            sentCount: 0,
+            failedCount: results.failed,
+            errors: results.errors,
+            error: `Email delivery failed for ${results.failed} subscriber(s): ${results.errors[0]?.error || 'Unknown error'}`
+          });
+        }
+
+        return json(res, 200, {
+          ok: true,
+          sentCount: results.sent,
+          failedCount: results.failed,
+          totalSubscribers: eligibleSubscribers.length,
+          errors: results.errors,
+          message: results.failed > 0
+            ? `Property alerts sent to ${results.sent} subscriber(s); ${results.failed} failed.`
+            : `Property alerts successfully sent to ${results.sent} subscriber(s).`
+        });
+
+      }).catch(() => json(res, 400, { ok: false, error: 'Invalid request body.' }));
+      return;
+    }
+
+    // ── Exclusive Property Alerts — Unsubscribe ──────────────────────────────
+    if ((url === '/api/unsubscribe' || url.startsWith('/api/unsubscribe?')) && (req.method === 'GET' || req.method === 'POST')) {
+      const processUnsubscribe = (rawEmail) => {
+        const normEmail = (rawEmail || '').trim().toLowerCase();
+        if (!normEmail) return false;
+
+        const dataDir = join(process.cwd(), 'server', 'data');
+        const subFile = join(dataDir, 'subscribers.json');
+        try {
+          if (existsSync(subFile)) {
+            const list = JSON.parse(readFileSync(subFile, 'utf8'));
+            if (Array.isArray(list)) {
+              let changed = false;
+              list.forEach(s => {
+                if (s.email && s.email.toLowerCase() === normEmail) {
+                  s.active = false;
+                  s.unsubscribedAt = new Date().toISOString();
+                  changed = true;
+                }
+              });
+              if (changed) writeFileSync(subFile, JSON.stringify(list, null, 2), 'utf8');
+              return true;
+            }
+          }
+        } catch (e) {
+          console.error('[KTK Unsubscribe] Error:', e.message);
+        }
+        return false;
+      };
+
+      if (req.method === 'GET') {
+        const emailParam = (req.url.split('?')[1] ? new URLSearchParams(req.url.split('?')[1]).get('email') : '') || '';
+        processUnsubscribe(emailParam);
+
+        res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
+        res.end(`<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Unsubscribed — KEY TO KOCHI</title>
+  <style>
+    body { margin: 0; background: #07090e; color: #f8fafc; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; display: flex; align-items: center; justify-content: center; min-height: 100vh; padding: 24px; box-sizing: border-box; }
+    .card { background: #0d111a; border: 1px solid rgba(212,175,55,.25); border-radius: 16px; padding: 40px 32px; max-width: 460px; text-align: center; box-shadow: 0 20px 50px rgba(0,0,0,.6); }
+    h1 { color: #d4af37; font-size: 22px; margin: 0 0 12px; }
+    p { color: #8492a6; font-size: 14px; line-height: 1.6; margin: 0 0 24px; }
+    .email-badge { color: #cbd5e1; font-weight: 600; }
+    a { display: inline-block; background: rgba(212,175,55,.15); border: 1px solid #d4af37; color: #f6d860; text-decoration: none; padding: 10px 24px; border-radius: 24px; font-size: 13px; font-weight: 600; }
+    a:hover { background: #d4af37; color: #07090e; }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <div style="font-size: 36px; margin-bottom: 16px;">✓</div>
+    <h1>You're Unsubscribed</h1>
+    <p>You have been successfully removed from KEY TO KOCHI Exclusive Property Alerts.<br><span class="email-badge">${emailParam || ''}</span></p>
+    <a href="/">Return to KEY TO KOCHI</a>
+  </div>
+</body>
+</html>`);
+        return;
+      } else {
+        readBody(req).then(body => {
+          const success = processUnsubscribe(body.email);
+          return json(res, 200, { ok: true, unsubscribed: success });
+        }).catch(() => json(res, 400, { ok: false, error: 'Invalid request.' }));
+        return;
+      }
     }
 
     next();

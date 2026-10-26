@@ -3,6 +3,32 @@ import { authService } from '../services/authService.js';
 import { renderBHKDonutChart, renderFurnishingBarChart, renderLocationBarChart, renderAvailabilityRatio, renderTenantTypeChart } from './charts.js';
 import { CURATED_IMAGE_PRESETS, TENANT_TYPES, TENANT_TYPE_CONFIG } from '../data/initialData.js';
 import { showToastNotification } from './actionModals.js';
+import { notifySubscribersOfNewProperty } from '../services/propertyAlertService.js';
+
+async function handlePublishNotification(property, isNewListing = true) {
+  if (!property || property.published === false) return;
+
+  const result = await notifySubscribersOfNewProperty(property);
+
+  let msg = isNewListing
+    ? `New property "${property.title}" successfully published and live on KEY TO KOCHI!`
+    : `Property "${property.title}" updated and published live on KEY TO KOCHI!`;
+
+  if (result.success) {
+    if (result.sentCount > 0) {
+      msg += `\n\n📧 Subscriber Alert: Sent to ${result.sentCount} registered subscriber(s).`;
+      showToastNotification('Alerts Dispatched!', `Sent to ${result.sentCount} subscriber(s).`);
+    } else {
+      msg += `\n\nℹ️ Subscriber Alert: ${result.message || 'No new alerts sent (already notified or no subscribers).'}`;
+    }
+  } else if (result.notConfigured) {
+    msg += `\n\n⚠️ Email Alert Notice: ${result.error}\n\nTo enable email alerts, please configure KTK_SMTP_USER and KTK_SMTP_PASS in your .env file.`;
+  } else if (!result.skipped) {
+    msg += `\n\n⚠️ Email Alert Delivery Issue: ${result.error}`;
+  }
+
+  alert(msg);
+}
 
 export class AdminPortal {
   constructor(containerElement, onCloseCallback) {
@@ -719,9 +745,12 @@ export class AdminPortal {
     });
 
     body.querySelectorAll('.publish-toggle-btn').forEach(btn => {
-      btn.addEventListener('click', () => {
+      btn.addEventListener('click', async () => {
         const id = btn.getAttribute('data-id');
-        store.togglePropertyPublish(id);
+        const updated = store.togglePropertyPublish(id);
+        if (updated && updated.published) {
+          await handlePublishNotification(updated, false);
+        }
       });
     });
 
@@ -1073,16 +1102,16 @@ export class AdminPortal {
 
     // Form submission (Publish)
     const form = body.querySelector('#admin-prop-form');
-    form.addEventListener('submit', (e) => {
+    form.addEventListener('submit', async (e) => {
       e.preventDefault();
       const data = getFormData(true);
 
       if (isEdit) {
-        store.updateProperty(this.editingPropertyId, data);
-        alert('Property updated and published successfully!');
+        const updated = store.updateProperty(this.editingPropertyId, data);
+        await handlePublishNotification(updated, false);
       } else {
-        store.addProperty(data);
-        alert('New property successfully published and live on KEY TO KOCHI!');
+        const newProp = store.addProperty(data);
+        await handlePublishNotification(newProp, true);
       }
 
       this.editingPropertyId = null;
@@ -1516,10 +1545,14 @@ export class AdminPortal {
     `;
 
     body.querySelectorAll('.btn-approve-sub').forEach(btn => {
-      btn.addEventListener('click', () => {
+      btn.addEventListener('click', async () => {
         const id = btn.getAttribute('data-id');
-        store.approveSubmission(id);
-        alert('Submission approved! It has been automatically added to the live public listings.');
+        const newProp = store.approveSubmission(id);
+        if (newProp && newProp.published) {
+          await handlePublishNotification(newProp, true);
+        } else {
+          alert('Submission approved! It has been automatically added to the live public listings.');
+        }
       });
     });
 

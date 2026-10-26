@@ -60,7 +60,39 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // 8. Admin Routing & Deep-Linking Guard
   initAdminRouting();
+
+  // 9. Check for Property Alert Deep-Link (?prop=prop-xxx or #property-xxx)
+  checkDeepLinkProperty();
 });
+
+function checkDeepLinkProperty() {
+  try {
+    const urlParams = new URLSearchParams(window.location.search);
+    let propId = urlParams.get('prop') || urlParams.get('property');
+
+    if (!propId && window.location.hash) {
+      const hash = window.location.hash;
+      const match = hash.match(/^#(?:property-|prop-)(.+)$/);
+      if (match) {
+        propId = match[1].startsWith('prop-') ? match[1] : `prop-${match[1]}`;
+      } else if (hash.startsWith('#prop-')) {
+        propId = hash.slice(1);
+      }
+    }
+
+    if (propId) {
+      const prop = store.getPropertyById(propId);
+      if (prop) {
+        setTimeout(() => {
+          scrollToSection('search-section');
+          openPropertyModal(propId, (p) => openEnquiryModal(p), (p) => openScheduleVisitModal(p));
+        }, 350);
+      }
+    }
+  } catch (err) {
+    console.warn('[KTK] Deep link parsing failed:', err);
+  }
+}
 
 /* ==========================================================================
    NAVBAR & SCROLL

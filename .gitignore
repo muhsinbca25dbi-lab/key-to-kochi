@@ -10,5 +10,8 @@ dist/
 .dev_last_otp*
 server/node_modules/
 
-# Subscriber list — contains real emails, never commit
+# Subscriber list & alert history — contains real emails, never commit
 server/data/subscribers.json
+server/data/alert_history.json
+server/data/*.json
+!server/data/.gitkeep
