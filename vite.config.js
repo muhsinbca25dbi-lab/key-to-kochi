@@ -80,35 +80,54 @@ function maskEmail(e) {
 // Email via nodemailer
 // ---------------------------------------------------------------------------
 async function sendOtpEmail(env, to, otp) {
-  const { KTK_SMTP_HOST: host, KTK_SMTP_PORT: port = '587',
-          KTK_SMTP_USER: user, KTK_SMTP_PASS: pass,
-          KTK_SMTP_FROM: from, KTK_SMTP_SECURE: secureStr } = env;
+  const host = env.KTK_SMTP_HOST;
+  const user = env.KTK_SMTP_USER;
+  const pass = env.KTK_SMTP_PASS;
 
-  const isRealSmtp = host && user && pass && pass !== 'your_gmail_app_password_here';
-
-  if (!isRealSmtp) {
-    // In local dev when SMTP credentials are not yet entered:
-    // Write OTP only to a private gitignored server file for developer / test access.
-    // It is NEVER exposed to network responses, browser console, or client storage.
-    const { writeFileSync } = await import('fs');
-    writeFileSync(join(process.cwd(), '.dev_last_otp.txt'), otp.trim(), 'utf8');
-    return { ok: true, devFallback: true };
+  // 1. Resend API support if configured
+  if (env.RESEND_API_KEY && env.RESEND_API_KEY.trim()) {
+    const fromAddr = env.RESEND_FROM || env.KTK_SMTP_FROM || 'KEY TO KOCHI <onboarding@resend.dev>';
+    const res = await fetch('https://api.resend.com/emails', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${env.RESEND_API_KEY.trim()}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        from: fromAddr,
+        to: [to],
+        subject: `Your KEY TO KOCHI Admin Verification Code: ${otp}`,
+        text: `Your one-time code: ${otp}\n\nExpires in 5 minutes. Do not share this code.`,
+        html: `<div style="font-family:sans-serif;background:#0a0d14;padding:40px 32px;color:#f8fafc;max-width:480px;margin:auto;border-radius:12px;border:1px solid rgba(212,175,55,.3)"><h2 style="color:#d4af37;text-align:center;">KEY TO KOCHI</h2><h3 style="text-align:center;">Admin Verification Code</h3><div style="background:rgba(212,175,55,.08);border:1.5px solid rgba(212,175,55,.4);border-radius:10px;padding:24px;text-align:center;"><span style="font-size:36px;font-weight:800;letter-spacing:8px;color:#d4af37;">${otp}</span></div><p style="color:#8492a6;font-size:11px;text-align:center;">Expires in 5 minutes.</p></div>`
+      })
+    });
+    if (res.ok) return { ok: true, provider: 'resend' };
+    const errData = await res.json().catch(() => ({}));
+    throw new Error(`Resend delivery failed: ${errData.message || res.statusText}`);
   }
 
-  const nodemailer = (await import('nodemailer')).default;
-  const transport = nodemailer.createTransport({
-    host, port: parseInt(port, 10),
-    secure: secureStr === 'true',
-    auth: { user, pass },
-    tls: { rejectUnauthorized: false }
-  });
+  // 2. SMTP via Nodemailer
+  if (host && user && pass && pass !== 'your_gmail_app_password_here') {
+    let port = parseInt(env.KTK_SMTP_PORT || (host.includes('gmail.com') ? '465' : '587'), 10);
+    let secure = env.KTK_SMTP_SECURE !== undefined ? env.KTK_SMTP_SECURE === 'true' : (port === 465);
 
-  await transport.sendMail({
-    from: from || `KEY TO KOCHI <${user}>`,
-    to,
-    subject: 'KEY TO KOCHI — Admin Verification Code',
-    text: `Your one-time code: ${otp}\n\nExpires in 5 minutes. Do not share this code.`,
-    html: `
+    const nodemailer = (await import('nodemailer')).default;
+    const transport = nodemailer.createTransport({
+      host,
+      port,
+      secure,
+      auth: { user, pass },
+      tls: { rejectUnauthorized: false },
+      connectionTimeout: 12000,
+      greetingTimeout: 10000
+    });
+
+    await transport.sendMail({
+      from: env.KTK_SMTP_FROM || `KEY TO KOCHI <${user}>`,
+      to,
+      subject: `Your KEY TO KOCHI Admin Verification Code: ${otp}`,
+      text: `Your one-time code: ${otp}\n\nExpires in 5 minutes. Do not share this code.`,
+      html: `
 <div style="font-family:sans-serif;background:#0a0d14;padding:40px 32px;color:#f8fafc;max-width:480px;margin:auto;border-radius:12px;border:1px solid rgba(212,175,55,.3)">
   <p style="text-align:center;font-size:11px;letter-spacing:3px;color:#d4af37;margin:0 0 4px">KEY TO KOCHI</p>
   <p style="text-align:center;color:#8492a6;font-size:11px;margin:0 0 28px">ADMIN PORTAL SECURITY</p>
@@ -122,8 +141,11 @@ async function sendOtpEmail(env, to, otp) {
     If you did not request this, ignore this email.
   </p>
 </div>`
-  });
-  return { ok: true };
+    });
+    return { ok: true, provider: 'smtp' };
+  }
+
+  throw new Error('Email service unconfigured. Please configure your email credentials (KTK_SMTP_USER and KTK_SMTP_PASS) in .env.');
 }
 
 function verifyAdminPass(inputPass, env) {
@@ -416,22 +438,21 @@ export default defineConfig(() => {
         sendLog.set(email, log);
 
         try {
-          const sendRes = await sendOtpEmail(env, email, otp);
-          const emailSent = !(sendRes && sendRes.devFallback);
+          await sendOtpEmail(env, email, otp);
           return json(res, 200, {
             ok: true,
             requiresOtp: true,
             preAuthToken: token,
             maskedEmail: maskEmail(email),
-            emailSent,
-            deliveryMethod: emailSent ? 'email' : 'dev_file',
+            emailSent: true,
+            deliveryMethod: 'email',
             expiresInSeconds: OTP_EXPIRY_MS / 1000
           });
         } catch (err) {
           preAuthStore.delete(token);
           otpStore.delete(token);
           console.error('[KTK OTP] Send error:', err.message);
-          return json(res, 503, { ok: false, error: 'Failed to send verification code. Please check SMTP settings.' });
+          return json(res, 503, { ok: false, error: `Failed to deliver verification code: ${err.message}` });
         }
       }).catch(() => json(res, 400, { ok: false, error: 'Invalid request.' }));
       return;
@@ -462,17 +483,16 @@ export default defineConfig(() => {
         (sendLog.get(rec.email) || (sendLog.set(rec.email, []), sendLog.get(rec.email))).push(Date.now());
 
         try {
-          const sendRes = await sendOtpEmail(env, rec.email, otp);
-          const emailSent = !(sendRes && sendRes.devFallback);
+          await sendOtpEmail(env, rec.email, otp);
           return json(res, 200, {
             ok: true,
-            emailSent,
-            deliveryMethod: emailSent ? 'email' : 'dev_file',
+            emailSent: true,
+            deliveryMethod: 'email',
             expiresInSeconds: OTP_EXPIRY_MS / 1000
           });
         } catch(err) {
           otpStore.delete(pat);
-          return json(res, 503, { ok: false, error: 'Failed to send verification code. Please check SMTP settings.' });
+          return json(res, 503, { ok: false, error: `Failed to send verification code: ${err.message}` });
         }
 
       }).catch(() => json(res, 400, { ok: false, error: 'Invalid request.' }));

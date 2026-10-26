@@ -728,10 +728,7 @@ export class AdminLoginScreen {
   }
 
   _getOtpSubtitleHTML() {
-    if (this._emailSent) {
-      return `Enter the 6-digit verification code sent to <strong style="color:#d4af37">${this._maskedEmail}</strong>`;
-    }
-    return `<strong>Development Testing Mode</strong> (Email unconfigured)<br><span style="font-size:0.75rem;color:rgba(180,192,215,0.85)">Code saved to local project file: <code style="color:#f6d860;background:rgba(212,175,55,0.12);padding:2px 6px;border-radius:4px;border:1px solid rgba(212,175,55,0.25)">.dev_last_otp.txt</code></span>`;
+    return `Enter the 6-digit verification code sent to <strong style="color:#d4af37">${this._maskedEmail}</strong>`;
   }
 
   async _handleSubmit() {
@@ -764,15 +761,15 @@ export class AdminLoginScreen {
       const res = await authService.login(email, pass);
       this._setLoading(false);
 
-      if (res.ok && res.requiresOtp) {
+      if (res.ok && res.requiresOtp && res.emailSent) {
         this._preAuthToken = res.preAuthToken;
         this._maskedEmail = res.maskedEmail || email;
-        this._emailSent = !!res.emailSent;
-        this._deliveryMethod = res.deliveryMethod || (res.emailSent ? 'email' : 'dev_file');
+        this._emailSent = true;
+        this._deliveryMethod = 'email';
         this._renderOtpPanelContent(res.expiresInSeconds || 300);
       } else {
         if (passEl) passEl.value = '';
-        this._showFormError(res.error || 'Invalid email or password.');
+        this._showFormError(res.error || 'Failed to send verification code to your email.');
       }
     } catch (err) {
       this._setLoading(false);
@@ -839,10 +836,10 @@ export class AdminLoginScreen {
 
     try {
       const res = await authService.sendOtp(this._preAuthToken);
-      if (res.ok) {
-        this._emailSent = !!res.emailSent;
-        this._deliveryMethod = res.deliveryMethod || (res.emailSent ? 'email' : 'dev_file');
-        this._startResendCountdown(30);
+      if (res.ok && res.emailSent) {
+        this._emailSent = true;
+        this._deliveryMethod = 'email';
+        this._startResendCountdown(60);
         this._startOtpCountdown(res.expiresInSeconds || 300);
 
         const subEl = this.container.querySelector('#aln-otp-subtitle');
@@ -852,11 +849,7 @@ export class AdminLoginScreen {
         if (el) {
           el.style.display = 'flex';
           el.className = 'aln-form-error aln-form-warn';
-          if (res.emailSent) {
-            el.innerHTML = '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#f59e0b" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="m9 12 2 2 4-4"/></svg> A new verification code has been dispatched to your email.';
-          } else {
-            el.innerHTML = '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#f59e0b" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="m9 12 2 2 4-4"/></svg> Development Mode: New code generated in <code>.dev_last_otp.txt</code>.';
-          }
+          el.innerHTML = `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#f59e0b" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="m9 12 2 2 4-4"/></svg> A new verification code has been dispatched to ${this._maskedEmail}.`;
         }
       } else {
         this._showOtpError(res.error || 'Failed to resend code. Please try again.');

@@ -70,34 +70,145 @@ function verifyAdminPass(password, env) {
 }
 
 async function sendOtpEmail(env, toEmail, otp) {
-  const host = env.KTK_SMTP_HOST;
-  const port = env.KTK_SMTP_PORT || '587';
-  const user = env.KTK_SMTP_USER;
-  const pass = env.KTK_SMTP_PASS;
-  const from = env.KTK_SMTP_FROM || `KEY TO KOCHI <${user}>`;
-  const secure = env.KTK_SMTP_SECURE === 'true';
+  const subject = `Your KEY TO KOCHI Admin Verification Code: ${otp}`;
+  const textContent = [
+    'KEY TO KOCHI — Admin Two-Factor Authentication',
+    '==============================================',
+    '',
+    `Your one-time 6-digit verification code is: ${otp}`,
+    '',
+    'This code is valid for 5 minutes and can only be used once.',
+    'If you did not request this login, please change your admin password immediately.',
+    '',
+    '-- KEY TO KOCHI Security'
+  ].join('\n');
 
-  if (!host || !user || !pass || pass === 'your_gmail_app_password_here') {
-    return { devFallback: true };
+  const htmlContent = `
+    <div style="font-family:'Segoe UI',Roboto,Helvetica,Arial,sans-serif;background:#07090e;padding:40px 20px;color:#f8fafc;margin:0;">
+      <div style="max-width:480px;margin:auto;background:#0d111a;border:1px solid rgba(212,175,55,0.3);border-radius:16px;padding:36px;box-shadow:0 12px 35px rgba(0,0,0,0.6);text-align:center;">
+        <p style="font-size:10px;letter-spacing:3px;color:#d4af37;margin:0 0 6px;font-weight:700;">KEY TO KOCHI</p>
+        <h2 style="font-size:20px;color:#ffffff;margin:0 0 16px;font-weight:700;">Admin Verification Code</h2>
+        <p style="font-size:14px;color:#94a3b8;line-height:1.6;margin:0 0 24px;">Use the one-time code below to authenticate and access the Admin Portal.</p>
+        <div style="background:rgba(212,175,55,0.08);border:1px solid rgba(212,175,55,0.3);border-radius:12px;padding:18px 24px;margin:0 auto 24px;display:inline-block;">
+          <span style="font-family:monospace;font-size:32px;font-weight:800;letter-spacing:8px;color:#d4af37;">${otp}</span>
+        </div>
+        <p style="font-size:12px;color:#64748b;margin:0 0 8px;">⏱ Valid for <strong>5 minutes</strong> &bull; Single-use security token</p>
+        <p style="font-size:11px;color:#475569;margin:16px 0 0;border-top:1px solid rgba(255,255,255,0.06);padding-top:16px;">If you did not attempt to sign in to KEY TO KOCHI, please ignore this email.</p>
+      </div>
+    </div>
+  `;
+
+  // 1. Resend HTTP API (HTTPS REST — optimal for cloud/serverless)
+  if (env.RESEND_API_KEY && env.RESEND_API_KEY.trim()) {
+    const fromAddr = env.RESEND_FROM || env.KTK_SMTP_FROM || 'KEY TO KOCHI <onboarding@resend.dev>';
+    const res = await fetch('https://api.resend.com/emails', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${env.RESEND_API_KEY.trim()}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        from: fromAddr,
+        to: [toEmail],
+        subject,
+        text: textContent,
+        html: htmlContent
+      })
+    });
+    const resData = await res.json().catch(() => ({}));
+    if (res.ok && resData.id) {
+      console.log(`[KTK Auth] ✅ OTP delivered via Resend API (ID: ${resData.id}) to ${toEmail}`);
+      return { ok: true, provider: 'resend', id: resData.id };
+    }
+    throw new Error(`Resend API failed (${res.status}): ${resData.message || JSON.stringify(resData)}`);
   }
 
-  const transport = nodemailer.createTransport({
-    host,
-    port: parseInt(port, 10),
-    secure,
-    auth: { user, pass },
-    tls: { rejectUnauthorized: false }
-  });
+  // 2. SendGrid HTTP API (HTTPS REST)
+  if (env.SENDGRID_API_KEY && env.SENDGRID_API_KEY.trim()) {
+    const fromAddr = env.SENDGRID_FROM || env.KTK_SMTP_FROM || 'admin@keytokochi.com';
+    const cleanFrom = fromAddr.replace(/^.*<|>.*$/g, '').trim() || fromAddr;
+    const res = await fetch('https://api.sendgrid.com/v3/mail/send', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${env.SENDGRID_API_KEY.trim()}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        personalizations: [{ to: [{ email: toEmail }] }],
+        from: { email: cleanFrom, name: 'KEY TO KOCHI' },
+        subject,
+        content: [
+          { type: 'text/plain', value: textContent },
+          { type: 'text/html', value: htmlContent }
+        ]
+      })
+    });
+    if (res.ok || res.status === 202) {
+      console.log(`[KTK Auth] ✅ OTP delivered via SendGrid API to ${toEmail}`);
+      return { ok: true, provider: 'sendgrid' };
+    }
+    const errText = await res.text().catch(() => '');
+    throw new Error(`SendGrid API failed (${res.status}): ${errText}`);
+  }
 
-  await transport.sendMail({
-    from,
-    to: toEmail,
-    subject: `Your KEY TO KOCHI Admin Verification Code: ${otp}`,
-    text: `Your one-time admin verification code is: ${otp}\n\nValid for 5 minutes. Do not share this code.`,
-    html: `<div style="font-family:sans-serif;background:#07090e;padding:40px;color:#fff;border-radius:12px;border:1px solid #d4af37;"><h2 style="color:#d4af37;">KEY TO KOCHI</h2><p>Your one-time admin verification code is:</p><h1 style="color:#d4af37;letter-spacing:6px;">${otp}</h1><p>Valid for 5 minutes.</p></div>`
-  });
+  // 3. Brevo HTTP API (HTTPS REST)
+  if (env.BREVO_API_KEY && env.BREVO_API_KEY.trim()) {
+    const fromEmail = env.BREVO_FROM || 'admin@keytokochi.com';
+    const res = await fetch('https://api.brevo.com/v3/smtp/email', {
+      method: 'POST',
+      headers: {
+        'api-key': env.BREVO_API_KEY.trim(),
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        sender: { name: 'KEY TO KOCHI', email: fromEmail },
+        to: [{ email: toEmail }],
+        subject,
+        textContent,
+        htmlContent
+      })
+    });
+    const resData = await res.json().catch(() => ({}));
+    if (res.ok && resData.messageId) {
+      console.log(`[KTK Auth] ✅ OTP delivered via Brevo API (ID: ${resData.messageId}) to ${toEmail}`);
+      return { ok: true, provider: 'brevo', id: resData.messageId };
+    }
+    throw new Error(`Brevo API failed (${res.status}): ${resData.message || JSON.stringify(resData)}`);
+  }
 
-  return { ok: true };
+  // 4. SMTP via Nodemailer (Gmail / Custom SMTP)
+  const host = env.KTK_SMTP_HOST;
+  const user = env.KTK_SMTP_USER;
+  const pass = env.KTK_SMTP_PASS;
+
+  if (host && user && pass && pass !== 'your_gmail_app_password_here') {
+    let port = parseInt(env.KTK_SMTP_PORT || (host.includes('gmail.com') ? '465' : '587'), 10);
+    let secure = env.KTK_SMTP_SECURE !== undefined ? env.KTK_SMTP_SECURE === 'true' : (port === 465);
+    const from = env.KTK_SMTP_FROM || `KEY TO KOCHI <${user}>`;
+
+    const transport = nodemailer.createTransport({
+      host,
+      port,
+      secure,
+      auth: { user, pass },
+      tls: { rejectUnauthorized: false },
+      connectionTimeout: 12000,
+      greetingTimeout: 10000
+    });
+
+    const info = await transport.sendMail({
+      from,
+      to: toEmail,
+      subject,
+      text: textContent,
+      html: htmlContent
+    });
+
+    console.log(`[KTK Auth] ✅ OTP delivered via SMTP (${host}:${port}) to ${toEmail} (ID: ${info.messageId})`);
+    return { ok: true, provider: 'smtp', messageId: info.messageId };
+  }
+
+  throw new Error('Email service unconfigured. Add your email provider credentials (such as KTK_SMTP_USER and KTK_SMTP_PASS in Netlify Environment Variables).');
 }
 
 async function sendSubscriberConfirmation(env, subscriberEmail) {
@@ -267,21 +378,24 @@ export const handler = async (event) => {
     });
 
     try {
-      const sendRes = await sendOtpEmail(env, email, otp);
-      const emailSent = !(sendRes && sendRes.devFallback);
+      await sendOtpEmail(env, email, otp);
       return json(200, {
         ok: true,
         requiresOtp: true,
         preAuthToken: token,
         maskedEmail: maskEmail(email),
-        emailSent,
-        deliveryMethod: emailSent ? 'email' : 'dev_file',
+        emailSent: true,
+        deliveryMethod: 'email',
         expiresInSeconds: OTP_EXPIRY_MS / 1000
       });
     } catch (err) {
       preAuthStore.delete(token);
       otpStore.delete(token);
-      return json(503, { ok: false, error: 'Failed to send verification code. Check SMTP settings.' });
+      console.error('[KTK Auth] Verification email failed:', err.message);
+      return json(503, {
+        ok: false,
+        error: `Failed to deliver verification code: ${err.message}`
+      });
     }
   }
 
@@ -304,14 +418,20 @@ export const handler = async (event) => {
     });
 
     try {
-      const sendRes = await sendOtpEmail(env, rec.email, otp);
+      await sendOtpEmail(env, rec.email, otp);
       return json(200, {
         ok: true,
-        emailSent: !(sendRes && sendRes.devFallback),
+        emailSent: true,
+        deliveryMethod: 'email',
         expiresInSeconds: OTP_EXPIRY_MS / 1000
       });
     } catch (err) {
-      return json(503, { ok: false, error: 'Failed to send verification code.' });
+      otpStore.delete(pat);
+      console.error('[KTK Auth] OTP Resend failed:', err.message);
+      return json(503, {
+        ok: false,
+        error: `Failed to send verification code: ${err.message}`
+      });
     }
   }
 

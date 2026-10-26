@@ -158,13 +158,19 @@ class AuthService {
       const data = await response.json().catch(() => ({}));
 
       if (response.ok && data.ok && data.requiresOtp) {
+        if (!data.emailSent) {
+          return {
+            ok: false,
+            error: data.error || 'Verification code could not be sent to your email.'
+          };
+        }
         return {
           ok: true,
           requiresOtp: true,
           preAuthToken: data.preAuthToken,
           maskedEmail: data.maskedEmail,
-          emailSent: !!data.emailSent,
-          deliveryMethod: data.deliveryMethod || (data.emailSent ? 'email' : 'dev_file'),
+          emailSent: true,
+          deliveryMethod: 'email',
           expiresInSeconds: data.expiresInSeconds || 300
         };
       }
@@ -219,10 +225,16 @@ class AuthService {
 
       const data = await response.json().catch(() => ({}));
       if (response.ok && data.ok) {
+        if (!data.emailSent) {
+          return {
+            ok: false,
+            error: data.error || 'Failed to dispatch verification code to your email.'
+          };
+        }
         return {
           ok: true,
-          emailSent: !!data.emailSent,
-          deliveryMethod: data.deliveryMethod || (data.emailSent ? 'email' : 'dev_file'),
+          emailSent: true,
+          deliveryMethod: 'email',
           expiresInSeconds: data.expiresInSeconds || 300
         };
       }
