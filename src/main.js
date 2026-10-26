@@ -617,13 +617,72 @@ function setupEventListeners() {
     });
   }
 
-  // 8. Footer Newsletter
-  const newsletterForm = document.getElementById('footer-newsletter-form');
+  // 8. Footer Newsletter — Exclusive Property Alerts
+  const newsletterForm   = document.getElementById('footer-newsletter-form');
+  const newsletterEmail  = document.getElementById('newsletter-email');
+  const newsletterSubmit = document.getElementById('newsletter-submit-btn');
+  const newsletterStatus = document.getElementById('newsletter-status');
+
+  function showNewsletterStatus(type, message) {
+    if (!newsletterStatus) return;
+    newsletterStatus.style.display = 'flex';
+    newsletterStatus.className = `newsletter-status newsletter-status--${type}`;
+    newsletterStatus.innerHTML = `
+      <span class="newsletter-status__icon">${type === 'success' ? '✓' : type === 'duplicate' ? '✦' : '⚠'}</span>
+      <span>${message}</span>
+    `;
+  }
+
   if (newsletterForm) {
-    newsletterForm.addEventListener('submit', (e) => {
+    newsletterForm.addEventListener('submit', async (e) => {
       e.preventDefault();
-      newsletterForm.reset();
-      showToastNotification('Subscribed!', 'You will receive priority access to new rental properties in Kochi.');
+      const email = (newsletterEmail ? newsletterEmail.value : '').trim();
+
+      // Client-side format validation
+      if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+        showNewsletterStatus('error', 'Please enter a valid email address.');
+        if (newsletterEmail) newsletterEmail.focus();
+        return;
+      }
+
+      // Loading state
+      if (newsletterSubmit) {
+        newsletterSubmit.disabled = true;
+        newsletterSubmit.textContent = 'Subscribing…';
+      }
+      if (newsletterStatus) newsletterStatus.style.display = 'none';
+
+      try {
+        const baseUrl = window.location.origin;
+        const res = await fetch(`${baseUrl}/api/subscribe`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+          body: JSON.stringify({ email })
+        });
+
+        const data = await res.json().catch(() => ({}));
+
+        if (res.ok && data.ok) {
+          // Hide form, show success — only on confirmed server save
+          if (newsletterForm) newsletterForm.style.display = 'none';
+          showNewsletterStatus('success',
+            data.emailConfirmed
+              ? 'Subscribed! A confirmation has been sent to your inbox.'
+              : 'You\'re subscribed to Exclusive Property Alerts!'
+          );
+          showToastNotification('Subscribed!', 'You will receive priority access to new rental properties in Kochi.');
+        } else if (res.status === 409) {
+          showNewsletterStatus('duplicate', 'This email is already subscribed — you\'ll be first to know!');
+          if (newsletterSubmit) { newsletterSubmit.disabled = false; newsletterSubmit.textContent = 'Subscribe'; }
+        } else {
+          const errMsg = data.error || 'Something went wrong. Please try again.';
+          showNewsletterStatus('error', errMsg);
+          if (newsletterSubmit) { newsletterSubmit.disabled = false; newsletterSubmit.textContent = 'Subscribe'; }
+        }
+      } catch (err) {
+        showNewsletterStatus('error', 'Unable to connect. Please check your connection and try again.');
+        if (newsletterSubmit) { newsletterSubmit.disabled = false; newsletterSubmit.textContent = 'Subscribe'; }
+      }
     });
   }
 

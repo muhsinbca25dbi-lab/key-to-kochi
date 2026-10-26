@@ -1,5 +1,5 @@
 import { defineConfig } from 'vite';
-import { readFileSync, existsSync } from 'fs';
+import { readFileSync, existsSync, writeFileSync, mkdirSync } from 'fs';
 import { join } from 'path';
 import { createHash, randomInt } from 'crypto';
 
@@ -140,6 +140,72 @@ function verifyAdminPass(inputPass, env) {
     return inputHash === defaultHash;
   }
   return false;
+}
+
+// ---------------------------------------------------------------------------
+// Email helpers for subscription flow
+// ---------------------------------------------------------------------------
+async function sendSubscriberConfirmation(env, subscriberEmail) {
+  const { KTK_SMTP_HOST: host, KTK_SMTP_PORT: port = '587',
+          KTK_SMTP_USER: user, KTK_SMTP_PASS: pass,
+          KTK_SMTP_FROM: from, KTK_SMTP_SECURE: secureStr } = env;
+
+  const isRealSmtp = host && user && pass && pass !== 'your_gmail_app_password_here';
+  if (!isRealSmtp) {
+    console.log(`[KTK Subscribe] Dev mode - confirmation email would be sent to: ${subscriberEmail}`);
+    return false;
+  }
+
+  const nodemailer = (await import('nodemailer')).default;
+  const transport = nodemailer.createTransport({
+    host, port: parseInt(port, 10),
+    secure: secureStr === 'true',
+    auth: { user, pass },
+    tls: { rejectUnauthorized: false }
+  });
+
+  await transport.sendMail({
+    from: from || `KEY TO KOCHI <${user}>`,
+    to: subscriberEmail,
+    subject: 'KEY TO KOCHI - You are now subscribed to Exclusive Property Alerts',
+    text: [
+      'Thank you for subscribing to KEY TO KOCHI Exclusive Property Alerts!',
+      '',
+      'You will be among the first to know when new premium rentals are listed',
+      'in Kakkanad, Marine Drive, Panampilly Nagar, and other prime Kochi locations.',
+      '',
+      'To unsubscribe at any time, reply to this email with the subject "Unsubscribe".',
+      '',
+      '-- KEY TO KOCHI | Luxury Rentals, Kochi'
+    ].join('\n'),
+    html: `<div style="font-family:sans-serif;background:#07090e;padding:48px 32px;color:#f8fafc;max-width:520px;margin:auto;border-radius:14px;border:1px solid rgba(212,175,55,.25)"><p style="text-align:center;font-size:11px;letter-spacing:3px;color:#d4af37;margin:0 0 2px">KEY TO KOCHI</p><p style="text-align:center;color:#8492a6;font-size:11px;margin:0 0 32px">LUXURY RENTALS &bull; KOCHI</p><h2 style="text-align:center;margin:0 0 12px;font-size:20px;font-weight:700">You&rsquo;re Subscribed!</h2><p style="text-align:center;color:#cbd5e1;font-size:14px;line-height:1.7;margin:0 0 28px">You will be among the <strong style="color:#d4af37">first to know</strong> when new premium rentals are listed across Kochi&rsquo;s finest addresses &mdash; before they go public.</p><div style="background:rgba(212,175,55,.07);border:1px solid rgba(212,175,55,.2);border-radius:10px;padding:20px 24px;margin-bottom:28px"><p style="margin:0;font-size:13px;color:#8492a6;line-height:1.6"><strong style="color:#d4af37;display:block;margin-bottom:6px">What to expect:</strong>&bull; Curated new listings in prime Kochi locations<br>&bull; Early access before public announcement<br>&bull; Exclusive rental deals &amp; promotions</p></div><p style="color:#475569;font-size:11px;text-align:center;margin:0;line-height:1.6">Subscribed as <strong style="color:#8492a6">${subscriberEmail}</strong><br>To unsubscribe, reply with subject &ldquo;Unsubscribe&rdquo;.</p></div>`
+  });
+  return true;
+}
+
+async function sendAdminSubscriberNotification(env, subscriberEmail, totalCount, adminEmail) {
+  const { KTK_SMTP_HOST: host, KTK_SMTP_PORT: port = '587',
+          KTK_SMTP_USER: user, KTK_SMTP_PASS: pass,
+          KTK_SMTP_SECURE: secureStr, KTK_SMTP_FROM: from } = env;
+
+  const isRealSmtp = host && user && pass && pass !== 'your_gmail_app_password_here';
+  if (!isRealSmtp) return;
+
+  const nodemailer = (await import('nodemailer')).default;
+  const transport = nodemailer.createTransport({
+    host, port: parseInt(port, 10),
+    secure: secureStr === 'true',
+    auth: { user, pass },
+    tls: { rejectUnauthorized: false }
+  });
+
+  await transport.sendMail({
+    from: from || `KEY TO KOCHI <${user}>`,
+    to: adminEmail,
+    subject: `[KEY TO KOCHI] New subscriber - ${subscriberEmail}`,
+    text: `New property alert subscriber: ${subscriberEmail}\nTotal subscribers: ${totalCount}\nTime: ${new Date().toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' })} IST`,
+    html: `<div style="font-family:sans-serif;background:#07090e;padding:32px;color:#f8fafc;max-width:480px;margin:auto;border-radius:12px;border:1px solid rgba(212,175,55,.2)"><p style="color:#d4af37;font-size:11px;letter-spacing:2px;margin:0 0 16px">KTK ADMIN NOTIFICATION</p><h3 style="margin:0 0 12px">New Subscriber</h3><p style="color:#cbd5e1;font-size:14px;margin:0 0 8px">Email: <strong style="color:#f6d860">${subscriberEmail}</strong></p><p style="color:#8492a6;font-size:13px;margin:0">Total subscribers: <strong style="color:#d4af37">${totalCount}</strong></p></div>`
+  });
 }
 
 // ---------------------------------------------------------------------------
@@ -307,6 +373,74 @@ export default defineConfig(() => {
       if (token.startsWith('ktk_sess_'))
         return json(res, 200, { valid: true, user: { email: ADMIN_EMAIL, role: 'ADMIN', name: 'KEY TO KOCHI Admin' } });
       return json(res, 401, { valid: false, error: 'Unauthorized' });
+    }
+
+    // ── Exclusive Property Alerts — Subscribe ────────────────────────────────
+    if (url === '/api/subscribe' && req.method === 'POST') {
+      readBody(req).then(async body => {
+        const rawEmail = (body.email || '').trim().toLowerCase();
+
+        // 1. Validate email format
+        if (!rawEmail || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(rawEmail)) {
+          return json(res, 400, { ok: false, error: 'Please enter a valid email address.' });
+        }
+
+        // 2. Load or initialise the subscriber list
+        const dataDir   = join(process.cwd(), 'server', 'data');
+        const subFile   = join(dataDir, 'subscribers.json');
+        let subscribers = [];
+        try {
+          if (!existsSync(dataDir)) mkdirSync(dataDir, { recursive: true });
+          if (existsSync(subFile)) {
+            subscribers = JSON.parse(readFileSync(subFile, 'utf8'));
+            if (!Array.isArray(subscribers)) subscribers = [];
+          }
+        } catch (e) {
+          console.error('[KTK Subscribe] Failed to read subscriber list:', e.message);
+          return json(res, 500, { ok: false, error: 'Internal server error. Please try again later.' });
+        }
+
+        // 3. Check for duplicate
+        const alreadySubscribed = subscribers.some(s => s.email === rawEmail);
+        if (alreadySubscribed) {
+          return json(res, 409, { ok: false, error: 'This email is already subscribed to property alerts.' });
+        }
+
+        // 4. Save new subscriber
+        const newRecord = {
+          email: rawEmail,
+          subscribedAt: new Date().toISOString(),
+          ip: req.headers['x-forwarded-for'] || req.socket?.remoteAddress || 'unknown',
+          active: true
+        };
+        subscribers.push(newRecord);
+        try {
+          writeFileSync(subFile, JSON.stringify(subscribers, null, 2), 'utf8');
+        } catch (e) {
+          console.error('[KTK Subscribe] Failed to write subscriber list:', e.message);
+          return json(res, 500, { ok: false, error: 'Could not save your subscription. Please try again.' });
+        }
+        console.log(`[KTK Subscribe] ✅ New subscriber saved: ${rawEmail} (total: ${subscribers.length})`);
+
+        // 5. Send confirmation email to subscriber (non-blocking — failure does not cancel subscription)
+        const emailDelivered = await sendSubscriberConfirmation(env, rawEmail).catch(e => {
+          console.warn('[KTK Subscribe] Confirmation email failed (subscription still saved):', e.message);
+          return false;
+        });
+
+        // 6. Notify admin of new subscriber (best-effort)
+        sendAdminSubscriberNotification(env, rawEmail, subscribers.length, ADMIN_EMAIL).catch(() => {});
+
+        return json(res, 200, {
+          ok: true,
+          emailConfirmed: emailDelivered,
+          message: emailDelivered
+            ? 'You are now subscribed! Check your inbox for a confirmation.'
+            : 'You are now subscribed to Exclusive Property Alerts!'
+        });
+
+      }).catch(() => json(res, 400, { ok: false, error: 'Invalid request body.' }));
+      return;
     }
 
     next();

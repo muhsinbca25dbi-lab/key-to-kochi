@@ -5086,3 +5086,48 @@ button, input, select, textarea {
   display: flex !important;
   align-items: stretch;
 }
+
+/* ==========================================================================
+   NEWSLETTER SUBSCRIPTION — Status Message Styles
+   ========================================================================== */
+.newsletter-status {
+  display: none;
+  align-items: flex-start;
+  gap: 9px;
+  margin-top: 12px;
+  padding: 11px 14px;
+  border-radius: 8px;
+  font-size: 0.82rem;
+  line-height: 1.5;
+  font-weight: 500;
+  font-family: var(--font-main, sans-serif);
+  animation: nl-status-in 0.28s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+@keyframes nl-status-in {
+  from { opacity: 0; transform: translateY(-6px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.newsletter-status__icon {
+  flex-shrink: 0;
+  font-size: 0.88rem;
+  line-height: 1.5;
+}
+.newsletter-status--success {
+  background: rgba(16, 185, 129, 0.09);
+  border: 1px solid rgba(16, 185, 129, 0.3);
+  color: #6ee7b7;
+}
+.newsletter-status--success .newsletter-status__icon { color: #10b981; font-weight: 700; }
+.newsletter-status--duplicate {
+  background: rgba(212, 175, 55, 0.08);
+  border: 1px solid rgba(212, 175, 55, 0.28);
+  color: #fcd34d;
+}
+.newsletter-status--duplicate .newsletter-status__icon { color: #d4af37; }
+.newsletter-status--error {
+  background: rgba(248, 113, 113, 0.08);
+  border: 1px solid rgba(248, 113, 113, 0.28);
+  color: #fca5a5;
+}
+.newsletter-status--error .newsletter-status__icon { color: #f87171; }
+

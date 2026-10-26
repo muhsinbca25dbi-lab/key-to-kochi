@@ -1,3 +1,5 @@
+
+
 node_modules/
 dist/
 .env
@@ -7,3 +9,6 @@ dist/
 .dev_last_otp.txt
 .dev_last_otp*
 server/node_modules/
+
+# Subscriber list — contains real emails, never commit
+server/data/subscribers.json
