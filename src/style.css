@@ -1658,6 +1658,69 @@ button, input, select, textarea {
   margin-bottom: 0;
 }
 
+.contact-phone-content {
+  display: flex;
+  flex-direction: column;
+}
+
+.contact-phone-display {
+  font-size: 1rem !important;
+  font-weight: 700 !important;
+  color: #f8fafc !important;
+  letter-spacing: 0.4px;
+  margin-top: 2px;
+  margin-bottom: 6px !important;
+}
+
+.contact-phone-actions {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  flex-wrap: wrap;
+  margin-top: 4px;
+}
+
+.phone-action-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 14px;
+  border-radius: 20px;
+  font-size: 0.78rem;
+  font-weight: 600;
+  text-decoration: none;
+  line-height: 1.4;
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.phone-call-btn {
+  background: rgba(212, 175, 55, 0.1);
+  border: 1px solid rgba(212, 175, 55, 0.3);
+  color: var(--gold-primary);
+}
+
+.phone-call-btn:hover {
+  background: var(--gold-primary);
+  color: #07090e;
+  border-color: var(--gold-primary);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 14px rgba(212, 175, 55, 0.28);
+}
+
+.phone-wa-btn {
+  background: rgba(37, 211, 102, 0.1);
+  border: 1px solid rgba(37, 211, 102, 0.3);
+  color: #25d366;
+}
+
+.phone-wa-btn:hover {
+  background: #25d366;
+  color: #07090e;
+  border-color: #25d366;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 14px rgba(37, 211, 102, 0.28);
+}
+
 .contact-form-col {
   padding: 50px 45px;
 }
