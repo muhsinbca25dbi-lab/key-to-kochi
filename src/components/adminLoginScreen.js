@@ -837,6 +837,9 @@ export class AdminLoginScreen {
     try {
       const res = await authService.sendOtp(this._preAuthToken);
       if (res.ok && res.emailSent) {
+        if (res.preAuthToken) {
+          this._preAuthToken = res.preAuthToken;
+        }
         this._emailSent = true;
         this._deliveryMethod = 'email';
         this._startResendCountdown(60);

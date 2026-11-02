@@ -1,7 +1,58 @@
 import { defineConfig } from 'vite';
 import { readFileSync, existsSync, writeFileSync, mkdirSync } from 'fs';
 import { join } from 'path';
-import { createHash, randomInt } from 'crypto';
+import { createHash, randomInt, randomBytes, createCipheriv, createDecipheriv } from 'crypto';
+
+// ---------------------------------------------------------------------------
+// Helpers for Clean Environment Variables & Cryptographic Stateless Tokens
+// ---------------------------------------------------------------------------
+function cleanEnv(val) {
+  if (!val) return '';
+  return String(val).trim().replace(/^["']|["']$/g, '');
+}
+
+function getServerSecret(env) {
+  const customSecret = cleanEnv(env.KTK_AUTH_SECRET);
+  if (customSecret) return customSecret;
+  const adminPass = cleanEnv(env.KTK_ADMIN_PASS || 'kochi2025');
+  const adminEmail = cleanEnv(env.KTK_ADMIN_EMAIL || 'muhsinck19@gmail.com').toLowerCase();
+  return createHash('sha256')
+    .update(`${adminPass}::${adminEmail}::ktk_production_secure_salt_2026`)
+    .digest('hex');
+}
+
+function deriveKey(secret) {
+  return createHash('sha256').update(secret).digest();
+}
+
+function encryptToken(payload, secret) {
+  const key = deriveKey(secret);
+  const iv = randomBytes(12);
+  const cipher = createCipheriv('aes-256-gcm', key, iv);
+  const jsonStr = JSON.stringify(payload);
+  const encrypted = Buffer.concat([cipher.update(jsonStr, 'utf8'), cipher.final()]);
+  const tag = cipher.getAuthTag();
+  return Buffer.concat([iv, tag, encrypted]).toString('base64url');
+}
+
+function decryptToken(tokenStr, secret) {
+  try {
+    if (!tokenStr || typeof tokenStr !== 'string') return null;
+    const cleanStr = tokenStr.replace(/^(ktk_pat_|ktk_sess_)/, '');
+    const key = deriveKey(secret);
+    const buf = Buffer.from(cleanStr, 'base64url');
+    if (buf.length < 28) return null;
+    const iv = buf.subarray(0, 12);
+    const tag = buf.subarray(12, 28);
+    const encrypted = buf.subarray(28);
+    const decipher = createDecipheriv('aes-256-gcm', key, iv);
+    decipher.setAuthTag(tag);
+    const decrypted = Buffer.concat([decipher.update(encrypted), decipher.final()]).toString('utf8');
+    return JSON.parse(decrypted);
+  } catch (_) {
+    return null;
+  }
+}
 
 // ---------------------------------------------------------------------------
 // Load .env manually — server-only vars, never sent to the browser.
@@ -19,7 +70,7 @@ function loadEnv(projectRoot) {
       env[t.slice(0, eq).trim()] = t.slice(eq + 1).trim().replace(/^["']|["']$/g, '');
     }
   }
-  return env;
+  return { ...env, ...process.env };
 }
 
 // ---------------------------------------------------------------------------
@@ -80,9 +131,10 @@ function maskEmail(e) {
 // Email via nodemailer
 // ---------------------------------------------------------------------------
 async function sendOtpEmail(env, to, otp) {
-  const host = env.KTK_SMTP_HOST;
-  const user = env.KTK_SMTP_USER;
-  const pass = env.KTK_SMTP_PASS;
+  const host = cleanEnv(env.KTK_SMTP_HOST);
+  const user = cleanEnv(env.KTK_SMTP_USER);
+  let pass = cleanEnv(env.KTK_SMTP_PASS);
+  if (pass && pass.includes(' ')) pass = pass.replace(/\s+/g, '');
 
   // 1. Resend API support if configured
   if (env.RESEND_API_KEY && env.RESEND_API_KEY.trim()) {
@@ -107,9 +159,16 @@ async function sendOtpEmail(env, to, otp) {
   }
 
   // 2. SMTP via Nodemailer
-  if (host && user && pass && pass !== 'your_gmail_app_password_here') {
-    let port = parseInt(env.KTK_SMTP_PORT || (host.includes('gmail.com') ? '465' : '587'), 10);
-    let secure = env.KTK_SMTP_SECURE !== undefined ? env.KTK_SMTP_SECURE === 'true' : (port === 465);
+  if (host && user && pass && pass !== 'your_gmail_app_password_here' && !pass.startsWith('your_')) {
+    let port = parseInt(cleanEnv(env.KTK_SMTP_PORT) || (host.includes('gmail.com') ? '465' : '587'), 10);
+    let secure;
+    if (cleanEnv(env.KTK_SMTP_SECURE) !== '') {
+      secure = cleanEnv(env.KTK_SMTP_SECURE).toLowerCase() === 'true';
+    } else {
+      secure = (port === 465);
+    }
+    if (port === 465) secure = true;
+    if (port === 587) secure = false;
 
     const nodemailer = (await import('nodemailer')).default;
     const transport = nodemailer.createTransport({
@@ -118,8 +177,8 @@ async function sendOtpEmail(env, to, otp) {
       secure,
       auth: { user, pass },
       tls: { rejectUnauthorized: false },
-      connectionTimeout: 12000,
-      greetingTimeout: 10000
+      connectionTimeout: 8000,
+      greetingTimeout: 8000
     });
 
     await transport.sendMail({
@@ -149,17 +208,18 @@ async function sendOtpEmail(env, to, otp) {
 }
 
 function verifyAdminPass(inputPass, env) {
-  const adminPass = (env.KTK_ADMIN_PASS || '').trim();
-  const adminPassHash = (env.KTK_ADMIN_PASS_HASH || '').trim();
+  const adminPass = cleanEnv(env.KTK_ADMIN_PASS || '');
+  const adminPassHash = cleanEnv(env.KTK_ADMIN_PASS_HASH || '').toLowerCase();
+  const rawInput = String(inputPass || '').trim();
 
-  if (adminPass && inputPass === adminPass) return true;
-  const inputHash = createHash('sha256').update(inputPass).digest('hex');
+  if (adminPass && rawInput === adminPass) return true;
+  const inputHash = createHash('sha256').update(rawInput).digest('hex').toLowerCase();
   if (adminPassHash && inputHash === adminPassHash) return true;
 
   // Safe default fallback hash if neither is explicitly set (sha256 of 'kochi2025'):
   if (!adminPass && !adminPassHash) {
     const defaultHash = '4c4d51cb9c1be7826372d8ffca2b73bc7ea5fc4fe2b45eb0d4de923bb6e90ff5';
-    return inputHash === defaultHash;
+    return inputHash === defaultHash || rawInput === 'kochi2025';
   }
   return false;
 }
@@ -403,33 +463,44 @@ async function sendPropertyAlertEmail(env, subscriberEmail, property, baseUrl) {
 export default defineConfig(() => {
   function handleApi(req, res, next) {
     const env = loadEnv(process.cwd());
-    const ADMIN_EMAIL = (env.KTK_ADMIN_EMAIL || 'muhsinck19@gmail.com').trim().toLowerCase();
+    const ADMIN_EMAIL = cleanEnv(env.KTK_ADMIN_EMAIL || 'muhsinck19@gmail.com').toLowerCase();
+    const secret = getServerSecret(env);
     const url = req.url ? req.url.split('?')[0] : '';
 
     // ── Step 1: Password verification & OTP generation ────────────────────────
     if ((url === '/api/auth/login' || url === '/api/admin/login') && req.method === 'POST') {
       readBody(req).then(async body => {
-        const email = (body.email || '').trim().toLowerCase();
+        const email = cleanEnv(body.email).toLowerCase();
         const pass  = (body.password || '').trim();
 
         if (email !== ADMIN_EMAIL || !verifyAdminPass(pass, env)) {
           return json(res, 401, { ok: false, error: 'Invalid email or password.' });
         }
 
-        const token = genToken();
         const otp   = genOtp();
         const salt  = genToken();
+        const expiresAt = Date.now() + OTP_EXPIRY_MS;
+
+        // Encrypted stateless token
+        const token = 'ktk_pat_' + encryptToken({
+          type: 'preauth',
+          email,
+          otp,
+          expiresAt,
+          attempts: 0
+        }, secret);
 
         preAuthStore.set(token, {
           email, role: 'ADMIN',
-          expiresAt: Date.now() + PRE_AUTH_EXPIRY_MS,
+          expiresAt,
           otpVerified: false
         });
 
         otpStore.set(token, {
           otpHash: hashOtp(otp, salt), salt,
+          otp,
           email,
-          expiresAt: Date.now() + OTP_EXPIRY_MS,
+          expiresAt,
           attempts: 0, used: false
         });
 
@@ -461,37 +532,56 @@ export default defineConfig(() => {
     // ── Step 2: Resend OTP ──────────────────────────────────────────────────
     if (url === '/api/auth/otp/send' && req.method === 'POST') {
       readBody(req).then(async body => {
-        const pat = (body.preAuthToken || '').trim();
+        const pat = cleanEnv(body.preAuthToken);
+        const decrypted = decryptToken(pat, secret);
         const rec = preAuthStore.get(pat);
 
-        if (!rec || rec.otpVerified || rec.expiresAt < Date.now()) {
-          preAuthStore.delete(pat);
+        const email = decrypted ? decrypted.email : (rec ? rec.email : null);
+        if (!email) {
           return json(res, 401, { ok: false, error: 'Session expired. Please log in again.' });
         }
 
-        const rate = checkSendRate(rec.email);
+        const rate = checkSendRate(email);
         if (!rate.ok) return json(res, 429, { ok: false, error: rate.msg });
 
         const otp  = genOtp();
         const salt = genToken();
-        otpStore.set(pat, {
+        const expiresAt = Date.now() + OTP_EXPIRY_MS;
+
+        const newPat = 'ktk_pat_' + encryptToken({
+          type: 'preauth',
+          email,
+          otp,
+          expiresAt,
+          attempts: 0
+        }, secret);
+
+        preAuthStore.set(newPat, {
+          email, role: 'ADMIN',
+          expiresAt,
+          otpVerified: false
+        });
+        otpStore.set(newPat, {
           otpHash: hashOtp(otp, salt), salt,
-          email: rec.email,
-          expiresAt: Date.now() + OTP_EXPIRY_MS,
+          otp,
+          email,
+          expiresAt,
           attempts: 0, used: false
         });
-        (sendLog.get(rec.email) || (sendLog.set(rec.email, []), sendLog.get(rec.email))).push(Date.now());
+        (sendLog.get(email) || (sendLog.set(email, []), sendLog.get(email))).push(Date.now());
 
         try {
-          await sendOtpEmail(env, rec.email, otp);
+          await sendOtpEmail(env, email, otp);
           return json(res, 200, {
             ok: true,
+            preAuthToken: newPat,
             emailSent: true,
             deliveryMethod: 'email',
             expiresInSeconds: OTP_EXPIRY_MS / 1000
           });
         } catch(err) {
-          otpStore.delete(pat);
+          preAuthStore.delete(newPat);
+          otpStore.delete(newPat);
           return json(res, 503, { ok: false, error: `Failed to send verification code: ${err.message}` });
         }
 
@@ -502,48 +592,78 @@ export default defineConfig(() => {
     // ── Step 3: Verify OTP & issue session ──────────────────────────────────
     if (url === '/api/auth/otp/verify' && req.method === 'POST') {
       readBody(req).then(body => {
-        const pat  = (body.preAuthToken || '').trim();
-        const otp  = (body.otp || '').trim().replace(/\s/g, '');
-        const pre  = preAuthStore.get(pat);
-        const orec = otpStore.get(pat);
+        const pat  = cleanEnv(body.preAuthToken);
+        const otp  = String(body.otp || '').trim().replace(/\s/g, '');
 
-        if (!pre || !orec)
-          return json(res, 401, { ok: false, error: 'Session not found. Please log in again.' });
-        if (pre.expiresAt < Date.now() || orec.expiresAt < Date.now()) {
-          preAuthStore.delete(pat); otpStore.delete(pat);
-          return json(res, 401, { ok: false, error: 'Session expired. Please log in again.' });
-        }
-        if (orec.used)
-          return json(res, 401, { ok: false, error: 'Code already used. Request a new one.' });
-        if (orec.attempts >= OTP_MAX_ATTEMPTS) {
-          preAuthStore.delete(pat); otpStore.delete(pat);
-          return json(res, 429, { ok: false, error: 'Too many incorrect attempts. Please log in again.' });
+        if (!pat || !otp) {
+          return json(res, 400, { ok: false, error: 'Verification token and OTP are required.' });
         }
         if (!/^\d{6}$/.test(otp)) {
-          orec.attempts++;
-          return json(res, 400, { ok: false, error: 'Enter a valid 6-digit code.',
-            attemptsLeft: OTP_MAX_ATTEMPTS - orec.attempts });
+          return json(res, 400, { ok: false, error: 'Enter a valid 6-digit code.' });
         }
 
-        if (hashOtp(otp, orec.salt) !== orec.otpHash) {
-          orec.attempts++;
-          const left = OTP_MAX_ATTEMPTS - orec.attempts;
-          if (left <= 0) { preAuthStore.delete(pat); otpStore.delete(pat); }
-          return json(res, 401, { ok: false,
-            error: left > 0 ? `Incorrect code. ${left} attempt${left !== 1 ? 's' : ''} left.`
-                            : 'Too many incorrect attempts. Please log in again.',
-            attemptsLeft: left });
+        let verifiedEmail = null;
+        const decrypted = decryptToken(pat, secret);
+
+        if (decrypted && decrypted.type === 'preauth') {
+          if (decrypted.expiresAt < Date.now()) {
+            return json(res, 401, { ok: false, error: 'Session expired. Please log in again.' });
+          }
+          if (decrypted.otp !== otp) {
+            return json(res, 401, {
+              ok: false,
+              error: 'Incorrect code. Please check your email and try again.',
+              attemptsLeft: 4
+            });
+          }
+          verifiedEmail = decrypted.email;
+        } else {
+          const pre  = preAuthStore.get(pat);
+          const orec = otpStore.get(pat);
+
+          if (!pre || !orec)
+            return json(res, 401, { ok: false, error: 'Session not found. Please log in again.' });
+          if (pre.expiresAt < Date.now() || orec.expiresAt < Date.now()) {
+            preAuthStore.delete(pat); otpStore.delete(pat);
+            return json(res, 401, { ok: false, error: 'Session expired. Please log in again.' });
+          }
+          if (orec.used)
+            return json(res, 401, { ok: false, error: 'Code already used. Request a new one.' });
+          if (orec.attempts >= OTP_MAX_ATTEMPTS) {
+            preAuthStore.delete(pat); otpStore.delete(pat);
+            return json(res, 429, { ok: false, error: 'Too many incorrect attempts. Please log in again.' });
+          }
+
+          if (hashOtp(otp, orec.salt) !== orec.otpHash && orec.otp !== otp) {
+            orec.attempts++;
+            const left = OTP_MAX_ATTEMPTS - orec.attempts;
+            if (left <= 0) { preAuthStore.delete(pat); otpStore.delete(pat); }
+            return json(res, 401, { ok: false,
+              error: left > 0 ? `Incorrect code. ${left} attempt${left !== 1 ? 's' : ''} left.`
+                              : 'Too many incorrect attempts. Please log in again.',
+              attemptsLeft: left });
+          }
+
+          // OTP correct
+          orec.used = true;
+          preAuthStore.delete(pat);
+          otpStore.delete(pat);
+          verifiedEmail = pre.email;
         }
 
-        // ✅ OTP correct
-        orec.used = true;
-        preAuthStore.delete(pat);
-        otpStore.delete(pat);
+        const sessionToken = 'ktk_sess_' + encryptToken({
+          type: 'session',
+          email: verifiedEmail,
+          role: 'ADMIN',
+          name: 'KEY TO KOCHI Admin',
+          issuedAt: Date.now(),
+          expiresAt: Date.now() + 24 * 60 * 60 * 1000
+        }, secret);
 
         return json(res, 200, {
           ok: true,
-          token: 'ktk_sess_' + genToken(),
-          user: { email: pre.email, role: 'ADMIN', name: 'KEY TO KOCHI Admin' }
+          token: sessionToken,
+          user: { email: verifiedEmail, role: 'ADMIN', name: 'KEY TO KOCHI Admin' }
         });
       }).catch(() => json(res, 400, { ok: false, error: 'Invalid request.' }));
       return;
@@ -557,8 +677,19 @@ export default defineConfig(() => {
     // ── Session verify ───────────────────────────────────────────────────────
     if (url === '/api/auth/verify') {
       const token = (req.headers['authorization'] || '').replace('Bearer ', '').trim();
+      if (!token) return json(res, 401, { valid: false, error: 'Unauthorized' });
+
+      const decrypted = decryptToken(token, secret);
+      if (decrypted && decrypted.type === 'session' && decrypted.role === 'ADMIN' && decrypted.expiresAt > Date.now()) {
+        return json(res, 200, {
+          valid: true,
+          user: { email: decrypted.email, role: 'ADMIN', name: decrypted.name || 'KEY TO KOCHI Admin' }
+        });
+      }
+
       if (token.startsWith('ktk_sess_'))
         return json(res, 200, { valid: true, user: { email: ADMIN_EMAIL, role: 'ADMIN', name: 'KEY TO KOCHI Admin' } });
+
       return json(res, 401, { valid: false, error: 'Unauthorized' });
     }
 

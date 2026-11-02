@@ -233,6 +233,7 @@ class AuthService {
         }
         return {
           ok: true,
+          preAuthToken: data.preAuthToken || preAuthToken,
           emailSent: true,
           deliveryMethod: 'email',
           expiresInSeconds: data.expiresInSeconds || 300
