@@ -14,11 +14,14 @@ function cleanEnv(val) {
 function getServerSecret(env) {
   const customSecret = cleanEnv(env.KTK_AUTH_SECRET);
   if (customSecret) return customSecret;
-  const adminPass = cleanEnv(env.KTK_ADMIN_PASS || 'kochi2025');
-  const adminEmail = cleanEnv(env.KTK_ADMIN_EMAIL || 'muhsinck19@gmail.com').toLowerCase();
-  return createHash('sha256')
-    .update(`${adminPass}::${adminEmail}::ktk_production_secure_salt_2026`)
-    .digest('hex');
+  const adminPass = cleanEnv(env.KTK_ADMIN_PASS);
+  const adminEmail = cleanEnv(env.KTK_ADMIN_EMAIL).toLowerCase();
+  if (adminPass || adminEmail) {
+    return createHash('sha256')
+      .update(`${adminPass}::${adminEmail}::ktk_production_secure_salt_2026`)
+      .digest('hex');
+  }
+  return createHash('sha256').update('ktk_production_secure_salt_2026').digest('hex');
 }
 
 function deriveKey(secret) {
@@ -208,19 +211,15 @@ async function sendOtpEmail(env, to, otp) {
 }
 
 function verifyAdminPass(inputPass, env) {
-  const adminPass = cleanEnv(env.KTK_ADMIN_PASS || '');
-  const adminPassHash = cleanEnv(env.KTK_ADMIN_PASS_HASH || '').toLowerCase();
+  const adminPass = cleanEnv(env.KTK_ADMIN_PASS);
+  const adminPassHash = cleanEnv(env.KTK_ADMIN_PASS_HASH).toLowerCase();
   const rawInput = String(inputPass || '').trim();
+  if (!rawInput) return false;
 
   if (adminPass && rawInput === adminPass) return true;
   const inputHash = createHash('sha256').update(rawInput).digest('hex').toLowerCase();
   if (adminPassHash && inputHash === adminPassHash) return true;
 
-  // Safe default fallback hash if neither is explicitly set (sha256 of 'kochi2025'):
-  if (!adminPass && !adminPassHash) {
-    const defaultHash = '4c4d51cb9c1be7826372d8ffca2b73bc7ea5fc4fe2b45eb0d4de923bb6e90ff5';
-    return inputHash === defaultHash || rawInput === 'kochi2025';
-  }
   return false;
 }
 
@@ -463,7 +462,7 @@ async function sendPropertyAlertEmail(env, subscriberEmail, property, baseUrl) {
 export default defineConfig(() => {
   function handleApi(req, res, next) {
     const env = loadEnv(process.cwd());
-    const ADMIN_EMAIL = cleanEnv(env.KTK_ADMIN_EMAIL || 'muhsinck19@gmail.com').toLowerCase();
+    const ADMIN_EMAIL = cleanEnv(env.KTK_ADMIN_EMAIL).toLowerCase();
     const secret = getServerSecret(env);
     const url = req.url ? req.url.split('?')[0] : '';
 
@@ -473,7 +472,7 @@ export default defineConfig(() => {
         const email = cleanEnv(body.email).toLowerCase();
         const pass  = (body.password || '').trim();
 
-        if (email !== ADMIN_EMAIL || !verifyAdminPass(pass, env)) {
+        if (!ADMIN_EMAIL || email !== ADMIN_EMAIL || !verifyAdminPass(pass, env)) {
           return json(res, 401, { ok: false, error: 'Invalid email or password.' });
         }
 
@@ -848,11 +847,11 @@ export default defineConfig(() => {
             sentCount: 0,
             error: 'SMTP email service is not configured. To send live property alerts, configure KTK_SMTP_USER and KTK_SMTP_PASS in your .env file.',
             requiredConfig: {
-              KTK_SMTP_HOST: 'smtp.gmail.com (or your SMTP host)',
+              KTK_SMTP_HOST: 'Your SMTP host (e.g. your-provider-host)',
               KTK_SMTP_PORT: '587',
               KTK_SMTP_USER: 'Your email address',
-              KTK_SMTP_PASS: 'Your 16-character Google App Password',
-              KTK_SMTP_FROM: '"KEY TO KOCHI <your_email@gmail.com>"'
+              KTK_SMTP_PASS: 'Your email password or App Password',
+              KTK_SMTP_FROM: '"KEY TO KOCHI <admin@example.com>"'
             }
           });
         }

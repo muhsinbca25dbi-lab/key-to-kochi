@@ -1687,10 +1687,10 @@ export class AdminPortal {
         </div>
 
         <div class="settings-card" style="margin-top: 24px;">
-          <h3>Admin Credentials</h3>
+          <h3>Admin Security & Access</h3>
           <div class="credentials-info-box">
-            <div><strong>Demo Admin Email:</strong> admin@keytokochi.com</div>
-            <div><strong>Default Password:</strong> kochi2025</div>
+            <div><strong>Authentication:</strong> Two-Factor Authentication (OTP via Email)</div>
+            <div><strong>Environment:</strong> Server-Side Managed</div>
             <span class="text-xs text-muted">Role: Master Administrator (Full R/W Access)</span>
           </div>
         </div>

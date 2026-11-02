@@ -71,11 +71,14 @@ function maskEmail(email) {
 function getServerSecret(env) {
   const customSecret = cleanEnv(env.KTK_AUTH_SECRET);
   if (customSecret) return customSecret;
-  const adminPass = cleanEnv(env.KTK_ADMIN_PASS || 'kochi2025');
-  const adminEmail = cleanEnv(env.KTK_ADMIN_EMAIL || 'muhsinck19@gmail.com').toLowerCase();
-  return crypto.createHash('sha256')
-    .update(`${adminPass}::${adminEmail}::ktk_production_secure_salt_2026`)
-    .digest('hex');
+  const adminPass = cleanEnv(env.KTK_ADMIN_PASS);
+  const adminEmail = cleanEnv(env.KTK_ADMIN_EMAIL).toLowerCase();
+  if (adminPass || adminEmail) {
+    return crypto.createHash('sha256')
+      .update(`${adminPass}::${adminEmail}::ktk_production_secure_salt_2026`)
+      .digest('hex');
+  }
+  return crypto.createHash('sha256').update('ktk_production_secure_salt_2026').digest('hex');
 }
 
 function deriveKey(secret) {
@@ -115,19 +118,15 @@ function decryptToken(tokenStr, secret) {
 // Admin Password Verification
 // ---------------------------------------------------------------------------
 function verifyAdminPass(password, env) {
-  const adminPass = cleanEnv(env.KTK_ADMIN_PASS || '');
-  const adminHash = cleanEnv(env.KTK_ADMIN_PASS_HASH || '').toLowerCase();
+  const adminPass = cleanEnv(env.KTK_ADMIN_PASS);
+  const adminHash = cleanEnv(env.KTK_ADMIN_PASS_HASH).toLowerCase();
   const inputPass = String(password || '').trim();
-  const inputHash = crypto.createHash('sha256').update(inputPass).digest('hex').toLowerCase();
+  if (!inputPass) return false;
 
   if (adminPass && inputPass === adminPass) return true;
+  const inputHash = crypto.createHash('sha256').update(inputPass).digest('hex').toLowerCase();
   if (adminHash && inputHash === adminHash) return true;
 
-  // Safe default fallback hash if neither is explicitly set (sha256 of 'kochi2025')
-  if (!adminPass && !adminHash) {
-    const defaultHash = '4c4d51cb9c1be7826372d8ffca2b73bc7ea5fc4fe2b45eb0d4de923bb6e90ff5';
-    return inputHash === defaultHash || inputPass === 'kochi2025';
-  }
   return false;
 }
 
@@ -458,7 +457,7 @@ function extractPath(event) {
 // ---------------------------------------------------------------------------
 export const handler = async (event) => {
   const env = process.env;
-  const ADMIN_EMAIL = cleanEnv(env.KTK_ADMIN_EMAIL || 'muhsinck19@gmail.com').toLowerCase();
+  const ADMIN_EMAIL = cleanEnv(env.KTK_ADMIN_EMAIL).toLowerCase();
   const secret = getServerSecret(env);
   const path = extractPath(event);
   const method = (event.httpMethod || 'GET').toUpperCase();
@@ -488,7 +487,7 @@ export const handler = async (event) => {
     const email = cleanEnv(body.email).toLowerCase();
     const pass = String(body.password || '').trim();
 
-    if (email !== ADMIN_EMAIL || !verifyAdminPass(pass, env)) {
+    if (!ADMIN_EMAIL || email !== ADMIN_EMAIL || !verifyAdminPass(pass, env)) {
       return json(401, { ok: false, error: 'Invalid email or password.' });
     }
 
