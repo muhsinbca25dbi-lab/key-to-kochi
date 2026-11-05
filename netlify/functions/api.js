@@ -1,6 +1,7 @@
 /**
  * Netlify Serverless Function for KEY TO KOCHI Backend API
- * Handles /api/auth/*, /api/subscribe, /api/alerts/*, and /api/unsubscribe in production.
+ * Handles /api/auth/*, /api/subscribe, /api/alerts/*, /api/unsubscribe,
+ * and admin-protected /api/admin/* routes backed by Cloud Firestore.
  *
  * Implements cryptographically secure, stateless AES-256-GCM tokens to guarantee
  * 100% reliable 2FA OTP verification across ephemeral serverless container lifecycles.
@@ -8,12 +9,113 @@
 import crypto from 'crypto';
 import nodemailer from 'nodemailer';
 
-// In-memory cache for warm Lambda executions
+// ---------------------------------------------------------------------------
+// Firebase Admin SDK — Firestore persistence
+// Falls back to in-memory if service account env vars are not configured.
+// ---------------------------------------------------------------------------
+import { initializeApp, getApps, cert } from 'firebase-admin/app';
+import { getFirestore, FieldValue } from 'firebase-admin/firestore';
+
+let adminDb = null;
+
+function getAdminDb() {
+  if (adminDb) return adminDb;
+
+  const projectId   = process.env.KTK_FIREBASE_PROJECT_ID;
+  const clientEmail = process.env.KTK_FIREBASE_CLIENT_EMAIL;
+  // Netlify env vars store newlines as literal \n — restore them
+  const privateKey  = (process.env.KTK_FIREBASE_PRIVATE_KEY || '').replace(/\\n/g, '\n');
+
+  if (!projectId || !clientEmail || !privateKey) {
+    return null; // Not yet configured — in-memory fallback active
+  }
+
+  try {
+    const app = getApps().length
+      ? getApps()[0]
+      : initializeApp({ credential: cert({ projectId, clientEmail, privateKey }) });
+    adminDb = getFirestore(app);
+    return adminDb;
+  } catch (e) {
+    console.error('[KTK Admin SDK] Init failed:', e.message);
+    return null;
+  }
+}
+
+// In-memory fallback for warm Lambda executions (used when Admin SDK not configured)
 const preAuthStore = new Map();
 const otpStore = new Map();
 const sendLog = new Map();
-const subscribersStore = [];
-const alertHistoryStore = [];
+// In-memory subscriber/alert stores — used as fallback when Firestore Admin SDK
+// is not yet configured. Once KTK_FIREBASE_* env vars are set in Netlify,
+// all subscriber and alert data persists to Cloud Firestore instead.
+const subscribersStoreFallback = [];
+const alertHistoryStoreFallback = [];
+
+// ---------------------------------------------------------------------------
+// Firestore subscriber helpers (use Admin SDK when available, else in-memory)
+// ---------------------------------------------------------------------------
+
+async function subscriberExists(email) {
+  const db = getAdminDb();
+  if (db) {
+    const snap = await db.collection('subscribers').doc(email).get();
+    return snap.exists && snap.data().active !== false;
+  }
+  return subscribersStoreFallback.some(s => s.email === email && s.active !== false);
+}
+
+async function saveSubscriber(email, ip) {
+  const db = getAdminDb();
+  const data = { email, subscribedAt: new Date().toISOString(), active: true, ip: ip || '' };
+  if (db) {
+    await db.collection('subscribers').doc(email).set(data, { merge: true });
+  } else {
+    subscribersStoreFallback.push(data);
+  }
+}
+
+async function getActiveSubscribers() {
+  const db = getAdminDb();
+  if (db) {
+    const snap = await db.collection('subscribers').where('active', '==', true).get();
+    return snap.docs.map(d => d.data());
+  }
+  return subscribersStoreFallback.filter(s => s && s.active !== false);
+}
+
+async function unsubscribeEmail(email) {
+  const db = getAdminDb();
+  if (db) {
+    await db.collection('subscribers').doc(email).set({ active: false }, { merge: true });
+  } else {
+    const item = subscribersStoreFallback.find(s => s.email === email);
+    if (item) item.active = false;
+  }
+}
+
+async function alertAlreadySent(propertyId, email) {
+  const db = getAdminDb();
+  if (db) {
+    const snap = await db.collection('alertHistory')
+      .where('propertyId', '==', propertyId)
+      .where('email', '==', email)
+      .limit(1)
+      .get();
+    return !snap.empty;
+  }
+  return alertHistoryStoreFallback.some(h => h.propertyId === propertyId && h.email === email);
+}
+
+async function recordAlertSent(propertyId, email) {
+  const db = getAdminDb();
+  const record = { propertyId, email, sentAt: new Date().toISOString() };
+  if (db) {
+    await db.collection('alertHistory').add(record);
+  } else {
+    alertHistoryStoreFallback.push(record);
+  }
+}
 
 const PRE_AUTH_EXPIRY_MS = 10 * 60 * 1000; // 10 minutes
 const OTP_EXPIRY_MS      = 5 * 60 * 1000;  // 5 minutes
@@ -701,14 +803,6 @@ export const handler = async (event) => {
       });
     }
 
-    // Fallback for sessions issued in local dev mode
-    if (token.startsWith('ktk_sess_')) {
-      return json(200, {
-        valid: true,
-        user: { email: ADMIN_EMAIL, role: 'ADMIN', name: 'KEY TO KOCHI Admin' }
-      });
-    }
-
     return json(401, { valid: false, error: 'Unauthorized or expired session.' });
   }
 
@@ -728,16 +822,12 @@ export const handler = async (event) => {
       return json(400, { ok: false, error: 'Please enter a valid email address.' });
     }
 
-    const exists = subscribersStore.some(s => s.email === rawEmail && s.active !== false);
+    const exists = await subscriberExists(rawEmail);
     if (exists) {
       return json(409, { ok: false, error: 'This email is already subscribed to property alerts.' });
     }
 
-    subscribersStore.push({
-      email: rawEmail,
-      subscribedAt: new Date().toISOString(),
-      active: true
-    });
+    await saveSubscriber(rawEmail, event.headers['x-forwarded-for'] || '');
 
     const emailDelivered = await sendSubscriberConfirmation(env, rawEmail).catch(() => false);
 
@@ -768,27 +858,12 @@ export const handler = async (event) => {
       return json(400, { ok: false, error: 'Invalid property data: ID and title are required.' });
     }
 
-    const activeSubscribers = subscribersStore.filter(s => s && s.active !== false);
+    const activeSubscribers = await getActiveSubscribers();
     if (activeSubscribers.length === 0) {
       return json(200, {
         ok: true,
         sentCount: 0,
         message: 'No registered subscribers found to notify.'
-      });
-    }
-
-    const alreadyNotified = new Set(
-      alertHistoryStore
-        .filter(h => h.propertyId === property.id)
-        .map(h => h.email)
-    );
-
-    const eligible = activeSubscribers.filter(s => !alreadyNotified.has(s.email));
-    if (eligible.length === 0) {
-      return json(200, {
-        ok: true,
-        sentCount: 0,
-        message: 'All registered subscribers have already received an alert for this property.'
       });
     }
 
@@ -806,11 +881,13 @@ export const handler = async (event) => {
 
     let sent = 0;
     const errors = [];
-    for (const sub of eligible) {
+    for (const sub of activeSubscribers) {
       try {
+        const alreadySent = await alertAlreadySent(property.id, sub.email);
+        if (alreadySent) continue;
         await sendPropertyAlertEmail(env, sub.email, property, baseUrl);
+        await recordAlertSent(property.id, sub.email);
         sent++;
-        alertHistoryStore.push({ propertyId: property.id, email: sub.email });
       } catch (e) {
         errors.push({ email: sub.email, error: e.message });
       }
@@ -830,13 +907,248 @@ export const handler = async (event) => {
   if (path === '/unsubscribe') {
     const queryEmail = event.queryStringParameters?.email || body?.email || '';
     const norm = cleanEnv(queryEmail).toLowerCase();
-    const item = subscribersStore.find(s => s.email === norm);
-    if (item) item.active = false;
+    await unsubscribeEmail(norm);
 
     if (method === 'GET') {
       return html(200, `<!DOCTYPE html><html><body style="background:#07090e;color:#fff;font-family:sans-serif;text-align:center;padding:50px;"><h2 style="color:#d4af37;">You have been unsubscribed</h2><p>You will no longer receive property alert emails for ${norm}.</p><a href="/" style="color:#d4af37;">Return to KEY TO KOCHI</a></body></html>`);
     }
     return json(200, { ok: true, unsubscribed: true });
+  }
+
+  // ──────────────────────────────────────────────────────────────────────────
+  // 9. /api/admin/* — Firestore Admin Routes (require valid admin session token)
+  // ──────────────────────────────────────────────────────────────────────────
+  if (path.startsWith('/admin/')) {
+    // Validate admin session token
+    const authHeader = event.headers.authorization || event.headers.Authorization || '';
+    const token = authHeader.replace(/^Bearer\s+/i, '').trim();
+    if (!token) return json(401, { ok: false, error: 'Missing authorization token.' });
+
+    const session = decryptToken(token, secret);
+    const isValidSession = session && session.type === 'session' && session.role === 'ADMIN' && session.expiresAt > Date.now();
+
+    if (!isValidSession) return json(401, { ok: false, error: 'Unauthorized or expired session.' });
+
+    const db = getAdminDb();
+    if (!db) {
+      return json(503, {
+        ok: false,
+        error: 'Firestore is not configured. Set KTK_FIREBASE_PROJECT_ID, KTK_FIREBASE_CLIENT_EMAIL, and KTK_FIREBASE_PRIVATE_KEY in Netlify environment variables.'
+      });
+    }
+
+    const adminPath = path.slice('/admin'.length); // e.g. '/properties', '/enquiries/enq-123'
+
+    // ── Properties ──────────────────────────────────────────────────────────
+    if (adminPath === '/properties' && method === 'GET') {
+      const snap = await db.collection('properties').orderBy('createdAt', 'desc').get();
+      const properties = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+      return json(200, { ok: true, properties });
+    }
+
+    if (adminPath === '/properties' && method === 'POST') {
+      const propData = body;
+      if (!propData.id) return json(400, { ok: false, error: 'Property id is required.' });
+      await db.collection('properties').doc(propData.id).set({
+        ...propData,
+        createdAt: propData.createdAt || new Date().toISOString(),
+        _syncedAt: new Date().toISOString()
+      });
+      return json(200, { ok: true, id: propData.id });
+    }
+
+    if (adminPath.startsWith('/properties/') && method === 'PUT') {
+      const propId = adminPath.split('/')[2];
+      await db.collection('properties').doc(propId).set(
+        { ...body, updatedAt: new Date().toISOString(), _syncedAt: new Date().toISOString() },
+        { merge: true }
+      );
+      return json(200, { ok: true, id: propId });
+    }
+
+    if (adminPath.startsWith('/properties/') && method === 'DELETE') {
+      const propId = adminPath.split('/')[2];
+      await db.collection('properties').doc(propId).delete();
+      return json(200, { ok: true, deleted: propId });
+    }
+
+    // ── Enquiries ────────────────────────────────────────────────────────────
+    if (adminPath === '/enquiries' && method === 'GET') {
+      const snap = await db.collection('enquiries').orderBy('createdAt', 'desc').get();
+      const enquiries = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+      return json(200, { ok: true, enquiries });
+    }
+
+    if (adminPath.startsWith('/enquiries/') && method === 'PATCH') {
+      const parts = adminPath.split('/');
+      const enqId = parts[2];
+
+      // Mark all as read: /api/admin/enquiries/__all__/read
+      if (enqId === '__all__' && parts[3] === 'read') {
+        const snap = await db.collection('enquiries').get();
+        const batch = db.batch();
+        snap.docs.forEach(d => batch.update(d.ref, { isRead: true }));
+        await batch.commit();
+        return json(200, { ok: true, markedAll: true });
+      }
+
+      await db.collection('enquiries').doc(enqId).set(
+        { ...body, _updatedAt: new Date().toISOString() },
+        { merge: true }
+      );
+      return json(200, { ok: true, id: enqId });
+    }
+
+    if (adminPath.startsWith('/enquiries/') && method === 'DELETE') {
+      const enqId = adminPath.split('/')[2];
+      await db.collection('enquiries').doc(enqId).delete();
+      return json(200, { ok: true, deleted: enqId });
+    }
+
+    // ── Submissions ──────────────────────────────────────────────────────────
+    if (adminPath === '/submissions' && method === 'GET') {
+      const snap = await db.collection('submissions').orderBy('createdAt', 'desc').get();
+      const submissions = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+      return json(200, { ok: true, submissions });
+    }
+
+    if (adminPath.startsWith('/submissions/') && method === 'PATCH') {
+      const subId = adminPath.split('/')[2];
+      await db.collection('submissions').doc(subId).set(
+        { ...body, _updatedAt: new Date().toISOString() },
+        { merge: true }
+      );
+      return json(200, { ok: true, id: subId });
+    }
+
+    // ── Locations ────────────────────────────────────────────────────────────
+    if (adminPath === '/locations' && method === 'GET') {
+      const snap = await db.collection('locations').get();
+      const locations = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+      return json(200, { ok: true, locations });
+    }
+
+    if (adminPath === '/locations' && method === 'POST') {
+      const locData = body;
+      const ref = locData.id
+        ? db.collection('locations').doc(locData.id)
+        : db.collection('locations').doc();
+      await ref.set({ ...locData, id: ref.id });
+      return json(200, { ok: true, id: ref.id });
+    }
+
+    // ── Seed: write initialData to Firestore (concurrency-safe, independent, zero-overwrite) ──
+    if (adminPath === '/seed' && method === 'POST') {
+      const lockRef = db.collection('_system').doc('seed_lock');
+
+      // 1. Concurrency guard: Use Firestore transaction to acquire an exclusive lock
+      const lockResult = await db.runTransaction(async (t) => {
+        const lockDoc = await t.get(lockRef);
+        if (lockDoc.exists) {
+          const data = lockDoc.data();
+          // If locked recently (within last 30 seconds), another seed process is active
+          if (data && data.locked === true && data.lockedAt) {
+            const age = Date.now() - new Date(data.lockedAt).getTime();
+            if (age < 30000) {
+              return { status: 'IN_PROGRESS' };
+            }
+          }
+        }
+        // Acquire exclusive lock
+        t.set(lockRef, { locked: true, lockedAt: new Date().toISOString() }, { merge: true });
+        return { status: 'ACQUIRED' };
+      }).catch((err) => {
+        console.error('[KTK Seed] Transaction lock error:', err.message);
+        return { status: 'ERROR', error: err.message };
+      });
+
+      // Immediately abort the seed operation unless lockResult.status === 'ACQUIRED'
+      if (!lockResult || lockResult.status !== 'ACQUIRED') {
+        if (lockResult && lockResult.status === 'IN_PROGRESS') {
+          return json(200, {
+            ok: true,
+            skipped: true,
+            message: 'Seeding is currently in progress by another request. Concurrent request safely ignored.'
+          });
+        }
+        return json(500, {
+          ok: false,
+          error: `Failed to acquire seed lock: ${lockResult?.error || 'Unknown transaction failure'}`
+        });
+      }
+
+      try {
+        // 2. Independent pre-flight check:
+        // Properties and locations collections are checked separately.
+        const existingPropsSnap = await db.collection('properties').limit(1).get();
+        const existingLocsSnap  = await db.collection('locations').limit(1).get();
+
+        const propertiesNeedSeed = existingPropsSnap.empty;
+        const locationsNeedSeed  = existingLocsSnap.empty;
+
+        // If both collections already contain data, skip completely to preserve all existing documents
+        if (!propertiesNeedSeed && !locationsNeedSeed) {
+          await lockRef.set({ locked: false, completedAt: new Date().toISOString() }, { merge: true });
+          return json(200, {
+            ok: true,
+            skipped: true,
+            message: 'Both properties and locations collections already contain data. Seeding skipped to preserve existing data.'
+          });
+        }
+
+        // 3. Load strictly the 10 demo properties and 12 locations from initialData.js.
+        // The 2 manually added laptop properties are NOT in initialData.js and will never be seeded.
+        const { INITIAL_PROPERTIES, INITIAL_LOCATIONS } = await import('../../src/data/initialData.js');
+
+        const batch = db.batch();
+        let seededProps = 0;
+        let seededLocs  = 0;
+
+        // Seed properties independently ONLY if the collection is genuinely empty.
+        // If properties collection already contains even 1 document, ALL existing documents are preserved.
+        if (propertiesNeedSeed) {
+          INITIAL_PROPERTIES.forEach(p => {
+            const ref = db.collection('properties').doc(p.id);
+            batch.set(ref, { ...p, _seededAt: new Date().toISOString() });
+            seededProps++;
+          });
+        }
+
+        // Seed locations independently ONLY if the collection is genuinely empty.
+        // If locations collection already contains even 1 document, ALL existing documents are preserved.
+        if (locationsNeedSeed) {
+          INITIAL_LOCATIONS.forEach(l => {
+            const ref = db.collection('locations').doc(l.id);
+            batch.set(ref, { ...l, _seededAt: new Date().toISOString() });
+            seededLocs++;
+          });
+        }
+
+        await batch.commit();
+
+        // Release lock
+        await lockRef.set({
+          locked: false,
+          completedAt: new Date().toISOString(),
+          seededProps,
+          seededLocs
+        }, { merge: true });
+
+        return json(200, {
+          ok: true,
+          seeded: true,
+          seededProps,
+          seededLocs,
+          message: `Seeding complete: ${seededProps} demo properties and ${seededLocs} locations seeded to Firestore.`
+        });
+      } catch (seedErr) {
+        // Ensure lock is released on error
+        await lockRef.set({ locked: false, errorAt: new Date().toISOString() }, { merge: true }).catch(() => {});
+        return json(500, { ok: false, error: `Seeding failed: ${seedErr.message}` });
+      }
+    }
+
+    return json(404, { ok: false, error: 'Admin route not found.', adminPath, method });
   }
 
   return json(404, { error: 'Not Found', path, method });

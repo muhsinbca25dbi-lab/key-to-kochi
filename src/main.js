@@ -884,6 +884,7 @@ function launchAdminPortal(updateUrl = true) {
     exitAdminPortal(isLogout);
   });
   adminPortalInstance.mount();
+  store.refreshAdminData().catch(() => {});
 }
 
 function exitAdminPortal(isLogout = false) {

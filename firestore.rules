@@ -1,0 +1,78 @@
+rules_version = '2';
+// KEY TO KOCHI — Firestore Security Rules
+//
+// Design principles:
+//   • Deny-by-default: the final catch-all blocks everything not explicitly listed.
+//   • Public reads are limited to published data only.
+//   • Public writes are limited to create-only on user-submitted collections (enquiries, submissions).
+//   • Subscriber and alert history collections are fully server-side — no client access at all.
+//   • Admin reads and writes on protected collections go through the Netlify Function (server-side)
+//     which uses the Firebase Admin SDK and bypasses these rules entirely.
+//
+// IMPORTANT: After editing these rules, deploy them from the Firebase Console:
+//   Firestore Database → Rules → paste and Publish.
+//   OR use: firebase deploy --only firestore:rules
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ── PROPERTIES ─────────────────────────────────────────────────────────
+    // Public: read published properties only.
+    // Writes: blocked from client. Admin writes go through Netlify Function (Admin SDK).
+    match /properties/{id} {
+      allow read: if resource.data.published == true;
+      allow write: if false;
+    }
+
+    // ── ENQUIRIES ───────────────────────────────────────────────────────────
+    // Public: create-only. Required fields are validated.
+    // Reads, updates, deletes: blocked from client (admin reads via Netlify Function).
+    match /enquiries/{id} {
+      allow create: if request.resource.data.keys().hasAll(['customerName', 'phone', 'email', 'message'])
+                    && request.resource.data.email is string
+                    && request.resource.data.email.size() > 3
+                    && request.resource.data.customerName is string
+                    && request.resource.data.customerName.size() > 0;
+      allow read, update, delete: if false;
+    }
+
+    // ── OWNER SUBMISSIONS ───────────────────────────────────────────────────
+    // Public: create-only. Required owner contact fields are validated.
+    // Reads, updates, deletes: blocked from client (admin reads via Netlify Function).
+    match /submissions/{id} {
+      allow create: if request.resource.data.keys().hasAll(['ownerName', 'phone', 'email'])
+                    && request.resource.data.email is string
+                    && request.resource.data.email.size() > 3
+                    && request.resource.data.ownerName is string
+                    && request.resource.data.ownerName.size() > 0;
+      allow read, update, delete: if false;
+    }
+
+    // ── SUBSCRIBERS ─────────────────────────────────────────────────────────
+    // All client access blocked. Written and read only by Netlify Function (Admin SDK).
+    match /subscribers/{email} {
+      allow read, write: if false;
+    }
+
+    // ── ALERT HISTORY ────────────────────────────────────────────────────────
+    // All client access blocked. Written and read only by Netlify Function (Admin SDK).
+    match /alertHistory/{id} {
+      allow read, write: if false;
+    }
+
+    // ── LOCATIONS ───────────────────────────────────────────────────────────
+    // Public: read all locations (needed for dropdowns on the public site).
+    // Writes: blocked from client. Admin writes go through Netlify Function (Admin SDK).
+    match /locations/{id} {
+      allow read: if true;
+      allow write: if false;
+    }
+
+    // ── CATCH-ALL ────────────────────────────────────────────────────────────
+    // Deny everything not explicitly matched above.
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}
+

@@ -686,9 +686,6 @@ export default defineConfig(() => {
         });
       }
 
-      if (token.startsWith('ktk_sess_'))
-        return json(res, 200, { valid: true, user: { email: ADMIN_EMAIL, role: 'ADMIN', name: 'KEY TO KOCHI Admin' } });
-
       return json(res, 401, { valid: false, error: 'Unauthorized' });
     }
 

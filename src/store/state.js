@@ -2,6 +2,20 @@ import { INITIAL_PROPERTIES, INITIAL_LOCATIONS, INITIAL_ENQUIRIES, INITIAL_OWNER
 
 const STORAGE_KEY = 'key_to_kochi_storage_v1';
 
+// ── Firestore modules loaded lazily so the app still works when Firebase
+//    env vars are not configured (graceful localStorage-only fallback).
+let _firestoreService = null;
+async function getFirestoreService() {
+  if (_firestoreService) return _firestoreService;
+  try {
+    _firestoreService = await import('../services/firestoreService.js');
+  } catch (e) {
+    console.warn('[KTK Store] firestoreService import failed:', e.message);
+    _firestoreService = null;
+  }
+  return _firestoreService;
+}
+
 class Store {
   constructor() {
     this.subscribers = new Set();
@@ -11,6 +25,151 @@ class Store {
         isAuthenticated: false,
         user: null
       };
+    }
+    // Kick off async Firestore load without blocking the constructor.
+    // The UI renders immediately from localStorage; Firestore data
+    // replaces it when available and triggers a re-render via notify().
+    this._loadFromFirestore();
+  }
+
+  // ── FIRESTORE BOOTSTRAP ─────────────────────────────────────────────────
+
+  /**
+   * Load shared data from Firestore and merge into in-memory state.
+   * Falls back silently to localStorage if Firestore is unavailable.
+   */
+  async _loadFromFirestore() {
+    const fs = await getFirestoreService();
+    if (!fs) return;
+
+    try {
+      const [properties, locations] = await Promise.all([
+        fs.getProperties(),
+        fs.getLocations()
+      ]);
+
+      let changed = false;
+
+      if (properties && properties.length > 0) {
+        // Ensure suitableFor is always populated (same normalisation as loadState)
+        this.state.properties = properties.map(p => {
+          if (!p.suitableFor || !Array.isArray(p.suitableFor) || p.suitableFor.length === 0) {
+            const bhk = p.bhk || '';
+            if (bhk === '1 BHK') return { ...p, suitableFor: ['Bachelors', 'Couples'] };
+            if (bhk === '4 BHK') return { ...p, suitableFor: ['Family'] };
+            return { ...p, suitableFor: ['Family', 'Couples'] };
+          }
+          return p;
+        });
+        changed = true;
+      }
+
+      if (locations && locations.length > 0) {
+        this.state.locations = locations;
+        changed = true;
+      }
+
+      // If admin is currently authenticated, also load private data from Netlify API.
+      await this._loadAdminDataIfAuthenticated();
+
+      if (changed) {
+        this.saveState();
+        this.notify('FIRESTORE_LOADED', null);
+      }
+    } catch (err) {
+      console.warn('[KTK Store] Firestore load error:', err.message);
+    }
+  }
+
+  /**
+   * If the admin session token is present in sessionStorage, fetch
+   * enquiries and submissions from the Netlify Function API so the
+   * admin portal sees all cross-browser submissions.
+   */
+  async _loadAdminDataIfAuthenticated() {
+    try {
+      const raw = sessionStorage.getItem('ktk_admin_session');
+      if (!raw) return;
+      const session = JSON.parse(raw);
+      if (!session || !session.token || session.expiresAt <= Date.now()) return;
+
+      const token = session.token;
+      const baseUrl = window.location.origin;
+      const headers = { 'Authorization': `Bearer ${token}`, 'Accept': 'application/json' };
+
+      const [enquiriesRes, submissionsRes, propertiesRes] = await Promise.all([
+        fetch(`${baseUrl}/api/admin/enquiries`, { headers }).catch(() => null),
+        fetch(`${baseUrl}/api/admin/submissions`, { headers }).catch(() => null),
+        fetch(`${baseUrl}/api/admin/properties`, { headers }).catch(() => null)
+      ]);
+
+      if (propertiesRes && propertiesRes.ok) {
+        const data = await propertiesRes.json().catch(() => ({}));
+        if (data.ok && Array.isArray(data.properties)) {
+          if (data.properties.length > 0) {
+            this.state.properties = data.properties.map(p => {
+              if (!p.suitableFor || !Array.isArray(p.suitableFor) || p.suitableFor.length === 0) {
+                const bhk = p.bhk || '';
+                if (bhk === '1 BHK') return { ...p, suitableFor: ['Bachelors', 'Couples'] };
+                if (bhk === '4 BHK') return { ...p, suitableFor: ['Family'] };
+                return { ...p, suitableFor: ['Family', 'Couples'] };
+              }
+              return p;
+            });
+          }
+        }
+      }
+
+      if (enquiriesRes && enquiriesRes.ok) {
+        const data = await enquiriesRes.json().catch(() => ({}));
+        // When the Admin API successfully returns an array (even if empty []),
+        // update the state so genuine empty states are displayed instead of dummy initialData.
+        if (data.ok && Array.isArray(data.enquiries)) {
+          this.state.enquiries = data.enquiries.map(e => ({
+            ...e,
+            isRead: typeof e.isRead === 'boolean' ? e.isRead : (e.status === 'New' ? false : true)
+          }));
+        }
+      }
+
+      if (submissionsRes && submissionsRes.ok) {
+        const data = await submissionsRes.json().catch(() => ({}));
+        // When the Admin API successfully returns submissions (even if empty []),
+        // update state to reflect genuine database status.
+        if (data.ok && Array.isArray(data.submissions)) {
+          this.state.submissions = data.submissions;
+        }
+      }
+    } catch (err) {
+      console.warn('[KTK Store] Admin data load error:', err.message);
+    }
+  }
+
+  /**
+   * Post an admin operation to the Netlify Function (which uses Admin SDK).
+   * Silent failure — the in-memory state is already updated before this is called.
+   * @param {string} method  HTTP verb
+   * @param {string} path    e.g. '/api/admin/properties/prop-123'
+   * @param {object} [body]  JSON body
+   */
+  async _adminSync(method, path, body) {
+    try {
+      const raw = sessionStorage.getItem('ktk_admin_session');
+      if (!raw) return;
+      const session = JSON.parse(raw);
+      if (!session || !session.token || session.expiresAt <= Date.now()) return;
+
+      const opts = {
+        method,
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${session.token}`
+        }
+      };
+      if (body !== undefined) opts.body = JSON.stringify(body);
+      await fetch(window.location.origin + path, opts);
+    } catch (err) {
+      console.warn('[KTK Store] _adminSync failed:', err.message);
     }
   }
 
@@ -136,6 +295,7 @@ class Store {
 
     this.state.properties.unshift(newProp);
     this.notify('PROPERTY_ADDED', newProp);
+    this._adminSync('POST', '/api/admin/properties', newProp);
     return newProp;
   }
 
@@ -151,6 +311,7 @@ class Store {
 
     const updated = this.state.properties[index];
     this.notify('PROPERTY_UPDATED', updated);
+    this._adminSync('PUT', `/api/admin/properties/${id}`, updated);
     return updated;
   }
 
@@ -160,6 +321,7 @@ class Store {
 
     const removed = this.state.properties.splice(index, 1)[0];
     this.notify('PROPERTY_DELETED', removed);
+    this._adminSync('DELETE', `/api/admin/properties/${id}`);
     return true;
   }
 
@@ -194,6 +356,12 @@ class Store {
 
     this.state.enquiries.unshift(newEnquiry);
     this.notify('ENQUIRY_ADDED', newEnquiry);
+
+    // Persist to Firestore (non-blocking — UI already updated above)
+    getFirestoreService().then(fs => {
+      if (fs) fs.addEnquiry(newEnquiry).catch(() => {});
+    });
+
     return newEnquiry;
   }
 
@@ -204,6 +372,7 @@ class Store {
     if (enquiry.isRead !== true) {
       enquiry.isRead = true;
       this.notify('ENQUIRY_READ_UPDATED', enquiry);
+      this._adminSync('PATCH', `/api/admin/enquiries/${id}`, { isRead: true });
     }
     return enquiry;
   }
@@ -215,6 +384,7 @@ class Store {
     if (enquiry.isRead !== false) {
       enquiry.isRead = false;
       this.notify('ENQUIRY_READ_UPDATED', enquiry);
+      this._adminSync('PATCH', `/api/admin/enquiries/${id}`, { isRead: false });
     }
     return enquiry;
   }
@@ -230,6 +400,7 @@ class Store {
 
     if (hasChanged) {
       this.notify('ALL_ENQUIRIES_READ', null);
+      this._adminSync('PATCH', '/api/admin/enquiries/__all__/read');
     }
     return true;
   }
@@ -244,6 +415,7 @@ class Store {
 
     enquiry.status = newStatus;
     this.notify('ENQUIRY_UPDATED', enquiry);
+    this._adminSync('PATCH', `/api/admin/enquiries/${id}`, { status: newStatus });
     return enquiry;
   }
 
@@ -253,6 +425,7 @@ class Store {
 
     const removed = this.state.enquiries.splice(index, 1)[0];
     this.notify('ENQUIRY_DELETED', removed);
+    this._adminSync('DELETE', `/api/admin/enquiries/${id}`);
     return true;
   }
 
@@ -272,6 +445,12 @@ class Store {
 
     this.state.submissions.unshift(newSubmission);
     this.notify('SUBMISSION_ADDED', newSubmission);
+
+    // Persist to Firestore (non-blocking — UI already updated above)
+    getFirestoreService().then(fs => {
+      if (fs) fs.addSubmission(newSubmission).catch(() => {});
+    });
+
     return newSubmission;
   }
 
@@ -309,6 +488,8 @@ class Store {
     });
 
     this.notify('SUBMISSION_APPROVED', { submission: sub, property: newProp });
+    // Sync submission status update to Firestore
+    this._adminSync('PATCH', `/api/admin/submissions/${id}`, { status: 'Approved' });
     return { submission: sub, property: newProp };
   }
 
@@ -317,6 +498,7 @@ class Store {
     if (!sub) return null;
     sub.status = 'Rejected';
     this.notify('SUBMISSION_REJECTED', sub);
+    this._adminSync('PATCH', `/api/admin/submissions/${id}`, { status: 'Rejected' });
     return sub;
   }
 
@@ -332,6 +514,7 @@ class Store {
     };
     this.state.locations.push(newLoc);
     this.notify('LOCATION_ADDED', newLoc);
+    this._adminSync('POST', '/api/admin/locations', newLoc);
     return newLoc;
   }
 
@@ -414,6 +597,18 @@ class Store {
     };
     this.saveState();
     this.notify('DATA_RESET', null);
+    // Trigger one-time initial seed via admin API if Firestore is empty
+    this._adminSync('POST', '/api/admin/seed');
+  }
+
+  /**
+   * Public method for the admin portal to trigger a fresh load of
+   * enquiries and submissions from Firestore (called after admin login).
+   */
+  async refreshAdminData() {
+    await this._loadAdminDataIfAuthenticated();
+    this.saveState();
+    this.notify('ADMIN_DATA_REFRESHED', null);
   }
 }
 
