@@ -11,26 +11,31 @@
 import { initializeApp, getApps } from 'firebase/app';
 import { getFirestore } from 'firebase/firestore';
 
+function cleanEnv(val) {
+  if (!val) return '';
+  return String(val).trim().replace(/^["']+|[",']+$/g, '').trim();
+}
+
 const firebaseConfig = {
-  apiKey:            import.meta.env.VITE_FIREBASE_API_KEY,
-  authDomain:        import.meta.env.VITE_FIREBASE_AUTH_DOMAIN,
-  projectId:         import.meta.env.VITE_FIREBASE_PROJECT_ID,
-  storageBucket:     import.meta.env.VITE_FIREBASE_STORAGE_BUCKET,
-  messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID,
-  appId:             import.meta.env.VITE_FIREBASE_APP_ID
+  apiKey:            cleanEnv(import.meta.env.VITE_FIREBASE_API_KEY),
+  authDomain:        cleanEnv(import.meta.env.VITE_FIREBASE_AUTH_DOMAIN),
+  projectId:         cleanEnv(import.meta.env.VITE_FIREBASE_PROJECT_ID),
+  storageBucket:     cleanEnv(import.meta.env.VITE_FIREBASE_STORAGE_BUCKET),
+  messagingSenderId: cleanEnv(import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID),
+  appId:             cleanEnv(import.meta.env.VITE_FIREBASE_APP_ID)
 };
 
 let app = null;
 let db  = null;
 
 try {
-  if (!import.meta.env.VITE_FIREBASE_PROJECT_ID) {
+  if (!firebaseConfig.projectId) {
     throw new Error('VITE_FIREBASE_PROJECT_ID is not configured');
   }
   // Avoid duplicate app error on hot-reload
   app = getApps().length ? getApps()[0] : initializeApp(firebaseConfig);
   db  = getFirestore(app);
-  console.info('[KTK Firebase] Firestore connected — project:', import.meta.env.VITE_FIREBASE_PROJECT_ID);
+  console.info('[KTK Firebase] Firestore connected — project:', firebaseConfig.projectId);
 } catch (e) {
   console.warn('[KTK Firebase] Initialisation failed — running in localStorage-only mode.', e.message);
 }

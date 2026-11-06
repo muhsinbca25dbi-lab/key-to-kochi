@@ -983,7 +983,7 @@ export const handler = async (event) => {
     // ── Enquiries ────────────────────────────────────────────────────────────
     if (adminPath === '/enquiries' && method === 'GET') {
       const snap = await db.collection('enquiries').orderBy('createdAt', 'desc').get();
-      const enquiries = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+      const enquiries = snap.docs.map(d => ({ ...d.data(), id: d.id }));
       return json(200, { ok: true, enquiries });
     }
 

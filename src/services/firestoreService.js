@@ -15,6 +15,7 @@ import {
   doc,
   getDocs,
   addDoc,
+  setDoc,
   query,
   where,
   serverTimestamp
@@ -75,13 +76,16 @@ export async function getLocations() {
 export async function addEnquiry(enquiryData) {
   if (!isReady()) return null;
   try {
-    const ref = await addDoc(collection(db, 'enquiries'), {
+    const enqId = enquiryData.id || doc(collection(db, 'enquiries')).id;
+    const docRef = doc(db, 'enquiries', enqId);
+    await setDoc(docRef, {
       ...enquiryData,
+      id: enqId,
       createdAt: serverTimestamp(),
       _source: 'client'
     });
-    console.info('[KTK Firestore] Enquiry saved:', ref.id);
-    return ref.id;
+    console.info('[KTK Firestore] Enquiry saved:', enqId);
+    return enqId;
   } catch (e) {
     console.warn('[KTK Firestore] addEnquiry failed:', e.message);
     return null;
