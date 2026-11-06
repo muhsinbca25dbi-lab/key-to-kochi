@@ -40,6 +40,11 @@ export class AdminPortal {
     this.propertyFilterType = 'All';
     this.propertyFilterStatus = 'All';
     this.enquiryFilterStatus = 'All';
+    this.subscriberFilterStatus = 'All';
+    this.subscriberSearchQuery = '';
+    this.subscribersLoading = false;
+    this.subscribersError = null;
+    this.subscribersLoaded = false;
     this.unsubscribe = null;
   }
 
@@ -69,6 +74,8 @@ export class AdminPortal {
       this.renderAddPropertyContent();
     } else if (this.currentTab === 'enquiries') {
       this.renderEnquiriesContent();
+    } else if (this.currentTab === 'subscribers') {
+      this.renderSubscribersContent();
     } else if (this.currentTab === 'submissions') {
       this.renderSubmissionsContent();
     } else if (this.currentTab === 'locations') {
@@ -119,6 +126,12 @@ export class AdminPortal {
     if (propCounter) {
       propCounter.textContent = stats.total;
     }
+
+    // 4. Subscribers Counter
+    const subsCounter = this.container.querySelector('#admin-subscribers-counter');
+    if (subsCounter) {
+      subsCounter.textContent = stats.totalSubscribers;
+    }
   }
 
   render() {
@@ -163,6 +176,12 @@ export class AdminPortal {
               <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
               <span>Enquiries</span>
               ${stats.unreadEnquiries > 0 ? `<span class="nav-badge-pill" id="enquiries-unread-badge">${stats.unreadEnquiries}</span>` : ''}
+            </button>
+
+            <button class="admin-nav-item ${this.currentTab === 'subscribers' ? 'active' : ''}" data-tab="subscribers" id="admin-nav-subscribers">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect width="20" height="16" x="2" y="4" rx="2"/><path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"/></svg>
+              <span>Subscribers</span>
+              ${stats.totalSubscribers > 0 ? `<span class="nav-counter" id="admin-subscribers-counter">${stats.totalSubscribers}</span>` : ''}
             </button>
 
             <button class="admin-nav-item ${this.currentTab === 'submissions' ? 'active' : ''}" data-tab="submissions">
@@ -227,6 +246,7 @@ export class AdminPortal {
       case 'properties': return 'Property Inventory Management';
       case 'add-property': return this.editingPropertyId ? 'Edit Property Listing' : 'Add New Property Listing';
       case 'enquiries': return 'Tenant Rental Enquiries';
+      case 'subscribers': return 'Property Alert Subscribers';
       case 'submissions': return 'Owner Property Review Queue';
       case 'locations': return 'Kochi Location Hubs';
       case 'settings': return 'System Settings & Demo Data';
@@ -281,6 +301,9 @@ export class AdminPortal {
     const titleEl = this.container.querySelector('#admin-page-title');
     if (titleEl) titleEl.textContent = this.getPageTitle();
     this.updateView();
+    if (tab === 'subscribers') {
+      this.loadSubscribers();
+    }
   }
 
   // ================= DASHBOARD TAB =================
@@ -1560,6 +1583,258 @@ export class AdminPortal {
       btn.addEventListener('click', () => {
         const id = btn.getAttribute('data-id');
         store.rejectSubmission(id);
+      });
+    });
+  }
+
+  // ================= SUBSCRIBERS TAB =================
+  async loadSubscribers() {
+    if (this.subscribersLoading) return;
+    this.subscribersLoading = true;
+    this.subscribersError = null;
+    this.updateView();
+    const res = await store.fetchAdminSubscribers();
+    this.subscribersLoading = false;
+    this.subscribersLoaded = true;
+    if (!res.ok) {
+      this.subscribersError = res.error || 'Failed to fetch subscribers from Firestore';
+    }
+    this.updateView();
+  }
+
+  renderSubscribersContent() {
+    const body = this.container.querySelector('#admin-content-body');
+    if (!body) return;
+
+    let subscribers = store.getSubscribers();
+    const stats = store.getStats();
+
+    // Filter by status
+    if (this.subscriberFilterStatus === 'Active') {
+      subscribers = subscribers.filter(s => s.active !== false);
+    } else if (this.subscriberFilterStatus === 'Unsubscribed') {
+      subscribers = subscribers.filter(s => s.active === false);
+    }
+
+    // Filter by search query
+    if (this.subscriberSearchQuery && this.subscriberSearchQuery.trim()) {
+      const q = this.subscriberSearchQuery.trim().toLowerCase();
+      subscribers = subscribers.filter(s => (s.email || '').toLowerCase().includes(q));
+    }
+
+    const formatSubDate = (iso) => {
+      if (!iso) return '—';
+      try {
+        const d = new Date(iso);
+        if (isNaN(d.getTime())) return iso;
+        return d.toLocaleDateString('en-IN', {
+          day: '2-digit',
+          month: 'short',
+          year: 'numeric'
+        });
+      } catch (_) {
+        return iso;
+      }
+    };
+
+    body.innerHTML = `
+      <div class="admin-subscribers-view">
+        <!-- KPI Summary Cards -->
+        <div class="admin-kpi-grid" style="grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); margin-bottom: 24px;">
+          <div class="kpi-card gold-border">
+            <div class="kpi-icon gold">
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect width="20" height="16" x="2" y="4" rx="2"/><path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"/></svg>
+            </div>
+            <div class="kpi-data">
+              <span class="kpi-label">Total Subscribers</span>
+              <span class="kpi-value">${stats.totalSubscribers}</span>
+              <span class="kpi-hint">Property alerts list</span>
+            </div>
+          </div>
+
+          <div class="kpi-card emerald-border">
+            <div class="kpi-icon emerald">
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+            </div>
+            <div class="kpi-data">
+              <span class="kpi-label">Active Subscribers</span>
+              <span class="kpi-value" style="color: #10b981;">${stats.activeSubscribers}</span>
+              <span class="kpi-hint">Receiving new listing emails</span>
+            </div>
+          </div>
+
+          <div class="kpi-card amber-border">
+            <div class="kpi-icon amber">
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="4.93" y1="4.93" x2="19.07" y2="19.07"/></svg>
+            </div>
+            <div class="kpi-data">
+              <span class="kpi-label">Unsubscribed Users</span>
+              <span class="kpi-value" style="color: #f59e0b;">${stats.unsubscribedUsers}</span>
+              <span class="kpi-hint">Opted out of alerts</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Filter & Search Toolbar -->
+        <div class="filter-toolbar-card">
+          <div class="toolbar-stats-text">
+            <div style="display: flex; align-items: center; gap: 10px;">
+              <strong>${subscribers.length} Subscribers</strong>
+              <span class="text-muted" style="font-size: 0.85rem;">(of ${stats.totalSubscribers} total)</span>
+            </div>
+            <span class="text-muted">Exclusive Kochi property alert subscribers from Cloud Firestore</span>
+          </div>
+
+          <div class="filter-controls-group" style="display: flex; gap: 12px; align-items: center; flex-wrap: wrap;">
+            <div class="search-input-wrapper" style="position: relative;">
+              <input 
+                type="text" 
+                id="subscriber-search-input" 
+                class="admin-select" 
+                placeholder="Search email..." 
+                value="${this.subscriberSearchQuery}"
+                style="padding-left: 32px; width: 220px;"
+              />
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="position: absolute; left: 10px; top: 50%; transform: translateY(-50%); color: var(--color-text-muted);"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+            </div>
+
+            <select id="subscriber-filter-status" class="admin-select">
+              <option value="All" ${this.subscriberFilterStatus === 'All' ? 'selected' : ''}>All Statuses (${stats.totalSubscribers})</option>
+              <option value="Active" ${this.subscriberFilterStatus === 'Active' ? 'selected' : ''}>Active Only (${stats.activeSubscribers})</option>
+              <option value="Unsubscribed" ${this.subscriberFilterStatus === 'Unsubscribed' ? 'selected' : ''}>Unsubscribed (${stats.unsubscribedUsers})</option>
+            </select>
+
+            <button class="btn-outline-gold" id="btn-refresh-subscribers" title="Refresh from Firestore">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="${this.subscribersLoading ? 'aln-spinner' : ''}"><path d="M21.5 2v6h-6M2.5 22v-6h6M2 11.5a10 10 0 0 1 18.8-4.3M22 12.5a10 10 0 0 1-18.8 4.3"/></svg>
+              ${this.subscribersLoading ? 'Refreshing...' : 'Refresh'}
+            </button>
+          </div>
+        </div>
+
+        <!-- Error State -->
+        ${this.subscribersError ? `
+          <div style="padding: 16px 20px; border-radius: 8px; background: rgba(239, 68, 68, 0.08); border: 1px solid rgba(239, 68, 68, 0.25); color: #f87171; margin-bottom: 20px; display: flex; align-items: center; justify-content: space-between;">
+            <div>
+              <strong>Error Loading Subscribers:</strong>
+              <span style="margin-left: 8px;">${this.subscribersError}</span>
+            </div>
+            <button class="btn-gold-sm" id="btn-retry-subscribers" style="margin-left: 16px;">Retry</button>
+          </div>
+        ` : ''}
+
+        <!-- Table View -->
+        <div class="table-responsive inventory-table-card">
+          <table class="admin-table">
+            <thead>
+              <tr>
+                <th style="width: 50px;">#</th>
+                <th>Subscriber Email</th>
+                <th>Subscription Date</th>
+                <th style="width: 140px;">Status</th>
+                <th style="text-align: right; width: 180px;">Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${this.subscribersLoading && !this.subscribersLoaded ? `
+                <tr>
+                  <td colspan="5" style="text-align: center; padding: 50px; color: var(--color-text-muted);">
+                    <div class="aln-spinner" style="display: inline-block; width: 28px; height: 28px; border: 2px solid rgba(212,175,55,0.2); border-top-color: var(--color-gold-metallic); border-radius: 50%; margin-bottom: 12px;"></div>
+                    <div>Loading registered subscribers from Cloud Firestore...</div>
+                  </td>
+                </tr>
+              ` : subscribers.length === 0 ? `
+                <tr>
+                  <td colspan="5" style="text-align: center; padding: 48px; color: var(--color-text-muted);">
+                    <div style="font-size: 2rem; margin-bottom: 8px;">📬</div>
+                    <strong style="color: var(--color-text-light);">No subscribers found</strong>
+                    <p class="text-xs text-muted" style="margin-top: 4px;">
+                      ${this.subscriberSearchQuery ? 'No subscriber emails matched your search term.' : 'Website visitors who join the Exclusive Property Alerts newsletter will appear here.'}
+                    </p>
+                  </td>
+                </tr>
+              ` : subscribers.map((s, idx) => `
+                <tr class="subscriber-table-row">
+                  <td style="color: var(--color-text-muted); font-size: 0.85rem;">${idx + 1}</td>
+                  <td>
+                    <div style="display: flex; align-items: center; gap: 8px;">
+                      <strong style="color: #f8fafc; font-size: 0.95rem;">${s.email}</strong>
+                    </div>
+                  </td>
+                  <td>
+                    <span class="cell-date">${formatSubDate(s.subscribedAt)}</span>
+                  </td>
+                  <td>
+                    ${s.active !== false ? `
+                      <span class="badge-status-pill badge-available" style="display: inline-flex; align-items: center; gap: 6px;">
+                        <span class="unread-dot" style="background:#10b981;"></span> Active
+                      </span>
+                    ` : `
+                      <span class="badge-status-pill badge-rented" style="opacity: 0.8; display: inline-flex; align-items: center; gap: 6px;">
+                        <span class="unread-dot" style="background:#ef4444;"></span> Unsubscribed
+                      </span>
+                    `}
+                  </td>
+                  <td style="text-align: right;">
+                    <div style="display: inline-flex; gap: 8px;">
+                      <button class="btn-table-action-view btn-copy-sub-email" data-email="${s.email}" title="Copy email address">
+                        Copy
+                      </button>
+                      <a href="mailto:${s.email}" class="btn-table-action-view" style="text-decoration: none;" title="Open default mail client">
+                        ✉ Mail
+                      </a>
+                    </div>
+                  </td>
+                </tr>
+              `).join('')}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    `;
+
+    // Attach event listeners for subscribers view
+    const searchInput = body.querySelector('#subscriber-search-input');
+    if (searchInput) {
+      searchInput.addEventListener('input', (e) => {
+        this.subscriberSearchQuery = e.target.value;
+        this.renderSubscribersContent();
+      });
+      if (this.subscriberSearchQuery) {
+        searchInput.focus();
+        searchInput.setSelectionRange(searchInput.value.length, searchInput.value.length);
+      }
+    }
+
+    const filterSelect = body.querySelector('#subscriber-filter-status');
+    if (filterSelect) {
+      filterSelect.addEventListener('change', (e) => {
+        this.subscriberFilterStatus = e.target.value;
+        this.renderSubscribersContent();
+      });
+    }
+
+    const refreshBtn = body.querySelector('#btn-refresh-subscribers');
+    if (refreshBtn) {
+      refreshBtn.addEventListener('click', () => this.loadSubscribers());
+    }
+
+    const retryBtn = body.querySelector('#btn-retry-subscribers');
+    if (retryBtn) {
+      retryBtn.addEventListener('click', () => this.loadSubscribers());
+    }
+
+    body.querySelectorAll('.btn-copy-sub-email').forEach(btn => {
+      btn.addEventListener('click', async () => {
+        const email = btn.getAttribute('data-email');
+        if (!email) return;
+        try {
+          await navigator.clipboard.writeText(email);
+          const orig = btn.textContent;
+          btn.textContent = 'Copied!';
+          setTimeout(() => { btn.textContent = orig; }, 1500);
+        } catch (_) {
+          alert(`Subscriber Email: ${email}`);
+        }
       });
     });
   }

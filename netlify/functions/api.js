@@ -1045,6 +1045,24 @@ export const handler = async (event) => {
       return json(200, { ok: true, id: ref.id });
     }
 
+    // ── Subscribers ──────────────────────────────────────────────────────────
+    if (adminPath === '/subscribers' && method === 'GET') {
+      const snap = await db.collection('subscribers').get();
+      const subscribers = snap.docs.map(d => {
+        const data = d.data();
+        return {
+          id: d.id,
+          email: data.email || d.id,
+          subscribedAt: data.subscribedAt || data.createdAt || null,
+          active: data.active !== false,
+          ip: data.ip || '',
+          ...data
+        };
+      });
+      subscribers.sort((a, b) => new Date(b.subscribedAt || 0) - new Date(a.subscribedAt || 0));
+      return json(200, { ok: true, subscribers });
+    }
+
     // ── Seed: write initialData to Firestore (concurrency-safe, independent, zero-overwrite) ──
     if (adminPath === '/seed' && method === 'POST') {
       const lockRef = db.collection('_system').doc('seed_lock');

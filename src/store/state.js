@@ -97,10 +97,11 @@ class Store {
       const baseUrl = window.location.origin;
       const headers = { 'Authorization': `Bearer ${token}`, 'Accept': 'application/json' };
 
-      const [enquiriesRes, submissionsRes, propertiesRes] = await Promise.all([
+      const [enquiriesRes, submissionsRes, propertiesRes, subscribersRes] = await Promise.all([
         fetch(`${baseUrl}/api/admin/enquiries`, { headers }).catch(() => null),
         fetch(`${baseUrl}/api/admin/submissions`, { headers }).catch(() => null),
-        fetch(`${baseUrl}/api/admin/properties`, { headers }).catch(() => null)
+        fetch(`${baseUrl}/api/admin/properties`, { headers }).catch(() => null),
+        fetch(`${baseUrl}/api/admin/subscribers`, { headers }).catch(() => null)
       ]);
 
       if (propertiesRes && propertiesRes.ok) {
@@ -138,6 +139,13 @@ class Store {
         // update state to reflect genuine database status.
         if (data.ok && Array.isArray(data.submissions)) {
           this.state.submissions = data.submissions;
+        }
+      }
+
+      if (subscribersRes && subscribersRes.ok) {
+        const data = await subscribersRes.json().catch(() => ({}));
+        if (data.ok && Array.isArray(data.subscribers)) {
+          this.state.subscriberList = data.subscribers;
         }
       }
     } catch (err) {
@@ -227,6 +235,7 @@ class Store {
       locations: INITIAL_LOCATIONS,
       enquiries: INITIAL_ENQUIRIES,
       submissions: INITIAL_OWNER_SUBMISSIONS,
+      subscriberList: [],
       adminAuth: {
         isAuthenticated: false,
         user: null
@@ -518,6 +527,41 @@ class Store {
     return newLoc;
   }
 
+  // --- SUBSCRIBERS ---
+  getSubscribers() {
+    return Array.isArray(this.state.subscriberList) ? [...this.state.subscriberList] : [];
+  }
+
+  async fetchAdminSubscribers() {
+    try {
+      const raw = sessionStorage.getItem('ktk_admin_session');
+      if (!raw) return { ok: false, error: 'Unauthorized: No active admin session found.' };
+      const session = JSON.parse(raw);
+      if (!session || !session.token || session.expiresAt <= Date.now()) {
+        return { ok: false, error: 'Session expired. Please log in again.' };
+      }
+      const token = session.token;
+      const baseUrl = window.location.origin;
+      const res = await fetch(`${baseUrl}/api/admin/subscribers`, {
+        headers: { 'Authorization': `Bearer ${token}`, 'Accept': 'application/json' }
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({ error: `HTTP ${res.status}` }));
+        return { ok: false, error: err.error || `HTTP ${res.status}` };
+      }
+      const data = await res.json();
+      if (data.ok && Array.isArray(data.subscribers)) {
+        this.state.subscriberList = data.subscribers;
+        this.saveState();
+        this.notify('SUBSCRIBERS_UPDATED', data.subscribers);
+        return { ok: true, subscribers: data.subscribers };
+      }
+      return { ok: false, error: 'Invalid response from server.' };
+    } catch (err) {
+      return { ok: false, error: err.message };
+    }
+  }
+
   // --- DYNAMIC STATISTICS ---
   getStats() {
     const all = this.state.properties;
@@ -565,6 +609,12 @@ class Store {
     // Submissions
     const pendingSubmissions = this.state.submissions.filter(s => s.status === 'Pending').length;
 
+    // Subscribers
+    const subscribers = Array.isArray(this.state.subscriberList) ? this.state.subscriberList : [];
+    const totalSubscribers = subscribers.length;
+    const activeSubscribers = subscribers.filter(s => s.active !== false).length;
+    const unsubscribedUsers = subscribers.filter(s => s.active === false).length;
+
     // Average Rent
     const avgRent = total > 0 ? Math.round(published.reduce((acc, curr) => acc + (Number(curr.rent) || 0), 0) / total) : 0;
 
@@ -582,6 +632,9 @@ class Store {
       contactedEnquiries,
       closedEnquiries,
       pendingSubmissions,
+      totalSubscribers,
+      activeSubscribers,
+      unsubscribedUsers,
       avgRent
     };
   }

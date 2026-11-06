@@ -977,6 +977,23 @@ export default defineConfig(() => {
       }
     }
 
+    // ── Admin: Subscribers List ──────────────────────────────────────────────
+    if (url === '/api/admin/subscribers' && req.method === 'GET') {
+      const dataDir = join(process.cwd(), 'server', 'data');
+      const subFile = join(dataDir, 'subscribers.json');
+      let subscribers = [];
+      try {
+        if (existsSync(subFile)) {
+          const list = JSON.parse(readFileSync(subFile, 'utf8'));
+          if (Array.isArray(list)) subscribers = list;
+        }
+      } catch (e) {
+        console.error('[KTK Admin Subscribers] Error:', e.message);
+      }
+      subscribers.sort((a, b) => new Date(b.subscribedAt || 0) - new Date(a.subscribedAt || 0));
+      return json(res, 200, { ok: true, subscribers });
+    }
+
     next();
   }
 
