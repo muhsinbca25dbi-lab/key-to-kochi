@@ -14,17 +14,22 @@ import nodemailer from 'nodemailer';
 // Falls back to in-memory if service account env vars are not configured.
 // ---------------------------------------------------------------------------
 import { initializeApp, getApps, cert } from 'firebase-admin/app';
-import { getFirestore, FieldValue } from 'firebase-admin/firestore';
+import { initializeFirestore, getFirestore, FieldValue } from 'firebase-admin/firestore';
+
+function cleanEnv(val) {
+  if (!val) return '';
+  return String(val).trim().replace(/^["']|["']$/g, '');
+}
 
 let adminDb = null;
 
 function getAdminDb() {
   if (adminDb) return adminDb;
 
-  const projectId   = process.env.KTK_FIREBASE_PROJECT_ID;
-  const clientEmail = process.env.KTK_FIREBASE_CLIENT_EMAIL;
+  const projectId   = cleanEnv(process.env.KTK_FIREBASE_PROJECT_ID);
+  const clientEmail = cleanEnv(process.env.KTK_FIREBASE_CLIENT_EMAIL);
   // Netlify env vars store newlines as literal \n — restore them
-  const privateKey  = (process.env.KTK_FIREBASE_PRIVATE_KEY || '').replace(/\\n/g, '\n');
+  const privateKey  = cleanEnv(process.env.KTK_FIREBASE_PRIVATE_KEY).replace(/\\n/g, '\n');
 
   if (!projectId || !clientEmail || !privateKey) {
     return null; // Not yet configured — in-memory fallback active
@@ -33,8 +38,16 @@ function getAdminDb() {
   try {
     const app = getApps().length
       ? getApps()[0]
-      : initializeApp({ credential: cert({ projectId, clientEmail, privateKey }) });
-    adminDb = getFirestore(app);
+      : initializeApp({
+          credential: cert({ projectId, clientEmail, privateKey }),
+          projectId
+        });
+
+    try {
+      adminDb = initializeFirestore(app, { preferRest: true });
+    } catch (_) {
+      adminDb = getFirestore(app);
+    }
     return adminDb;
   } catch (e) {
     console.error('[KTK Admin SDK] Init failed:', e.message);
@@ -125,11 +138,6 @@ const OTP_RESEND_WAIT_MS = 20 * 1000;       // 20s between resends
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
-function cleanEnv(val) {
-  if (!val) return '';
-  return String(val).trim().replace(/^["']|["']$/g, '');
-}
-
 function json(statusCode, data, extraHeaders = {}) {
   return {
     statusCode,
