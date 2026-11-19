@@ -52,7 +52,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // 7. Subscribe to Central Store for instant live reactivity
   store.subscribe((eventType, payload) => {
-    // Whenever anything updates in store (Admin added property, changed status, etc.)
+    // Whenever anything updates in store (Admin added/edited/deleted property, location, etc.)
+    populateLocationDropdowns();
     renderPropertiesListing();
     renderFeaturedProperties();
     renderPopularLocations();
@@ -154,13 +155,26 @@ function populateLocationDropdowns() {
   const heroLocSelect = document.getElementById('hero-filter-loc');
   const mainLocSelect = document.getElementById('filter-location');
 
+  const currentHeroVal = heroLocSelect ? heroLocSelect.value : 'All';
+  const currentMainVal = mainLocSelect ? mainLocSelect.value : 'All';
+
   const optionsHtml = `
     <option value="All">All Kochi Locations</option>
     ${locations.map(l => `<option value="${l.name}">${l.name}</option>`).join('')}
   `;
 
-  if (heroLocSelect) heroLocSelect.innerHTML = optionsHtml;
-  if (mainLocSelect) mainLocSelect.innerHTML = optionsHtml;
+  if (heroLocSelect) {
+    heroLocSelect.innerHTML = optionsHtml;
+    if ([...heroLocSelect.options].some(o => o.value === currentHeroVal)) {
+      heroLocSelect.value = currentHeroVal;
+    }
+  }
+  if (mainLocSelect) {
+    mainLocSelect.innerHTML = optionsHtml;
+    if ([...mainLocSelect.options].some(o => o.value === currentMainVal)) {
+      mainLocSelect.value = currentMainVal;
+    }
+  }
 }
 
 /* ==========================================================================

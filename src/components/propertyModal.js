@@ -80,8 +80,8 @@ export function openPropertyModal(propertyId, onEnquiryOpen, onScheduleOpen) {
               <!-- Quick Specs Ribbon -->
               <div class="prop-specs-ribbon">
                 <div class="spec-cell">
-                  <span class="spec-label">Bedrooms</span>
-                  <span class="spec-val">${property.bedrooms || property.bhk.split(' ')[0]} BHK</span>
+                  <span class="spec-label">Configuration</span>
+                  <span class="spec-val">${property.bhk === 'Sharing Property' ? 'Sharing Space' : (property.bhk || `${property.bedrooms || 1} BHK`)}</span>
                 </div>
                 <div class="spec-divider"></div>
                 <div class="spec-cell">

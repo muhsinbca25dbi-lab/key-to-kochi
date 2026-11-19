@@ -4,6 +4,13 @@ import { renderBHKDonutChart, renderFurnishingBarChart, renderLocationBarChart, 
 import { CURATED_IMAGE_PRESETS, TENANT_TYPES, TENANT_TYPE_CONFIG } from '../data/initialData.js';
 import { showToastNotification } from './actionModals.js';
 import { notifySubscribersOfNewProperty } from '../services/propertyAlertService.js';
+import {
+  validateImageFile,
+  uploadMultiplePropertyImages,
+  deletePropertyImageFile,
+  cleanupUnsavedImageFiles,
+  MAX_PHOTOS_PER_PROPERTY
+} from '../services/imageService.js';
 
 async function handlePublishNotification(property, isNewListing = true) {
   if (!property || property.published === false) return;
@@ -399,7 +406,7 @@ export class AdminPortal {
           <div class="chart-panel">
             <div class="chart-panel-header">
               <h3>Properties by BHK Type</h3>
-              <span class="panel-subtitle">1 BHK, 2 BHK, 3 BHK & 4 BHK Distribution</span>
+              <span class="panel-subtitle">1 BHK, 2 BHK, 3 BHK & Sharing Distribution</span>
             </div>
             <div id="chart-bhk-donut" class="chart-content-area"></div>
           </div>
@@ -850,7 +857,8 @@ export class AdminPortal {
                 <option value="1 BHK" ${prop && prop.bhk === '1 BHK' ? 'selected' : ''}>1 BHK</option>
                 <option value="2 BHK" ${prop && prop.bhk === '2 BHK' ? 'selected' : ''}>2 BHK</option>
                 <option value="3 BHK" ${prop && prop.bhk === '3 BHK' ? 'selected' : ''}>3 BHK</option>
-                <option value="4 BHK" ${prop && prop.bhk === '4 BHK' ? 'selected' : ''}>4 BHK</option>
+                <option value="Sharing Property" ${prop && prop.bhk === 'Sharing Property' ? 'selected' : ''}>Sharing Property</option>
+                ${prop && prop.bhk === '4 BHK' ? '<option value="4 BHK" selected>4 BHK (Historical)</option>' : ''}
               </select>
             </div>
 
@@ -972,14 +980,46 @@ export class AdminPortal {
             </div>
           </div>
 
-          <!-- Multiple Image Management -->
+          <!-- Multiple Image Management & Direct Upload -->
           <div class="image-management-box">
             <div class="box-header-row">
               <div>
-                <h4>Property Photos & Gallery Management</h4>
-                <p class="text-xs text-muted">Upload cover image and multiple high-res gallery images. The first image serves as the main display cover.</p>
+                <h4>Property Photos & Gallery (Up to 5 Photos)</h4>
+                <p class="text-xs text-muted">Original property photos stored in ImageKit without compression. Exact format & quality preserved (max 10MB each). First image is Cover Photo.</p>
               </div>
-              <button type="button" class="btn-text-gold" id="btn-toggle-preset-picker">+ Quick Preset Photo Library</button>
+              <div style="display: flex; gap: 8px;">
+                <button type="button" class="btn-text-gold" id="btn-toggle-preset-picker">+ Sample Presets</button>
+                <button type="button" class="btn-text-gold" id="btn-toggle-url-input">+ Paste URL</button>
+              </div>
+            </div>
+
+            <!-- Direct Upload Zone -->
+            <div class="direct-upload-box" id="direct-upload-dropzone">
+              <input type="file" id="prop-image-file-input" accept="image/jpeg,image/png,image/webp,image/gif,image/avif" multiple style="display: none;" />
+              <div class="upload-box-content">
+                <div class="upload-box-icon">
+                  <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+                </div>
+                <div class="upload-box-text">
+                  <h5>Upload Original Photos from Device</h5>
+                  <p>Select up to 5 photos (JPG, PNG, WEBP, GIF, AVIF — max 10MB each).</p>
+                  <span class="upload-meta">Direct binary upload to ImageKit. Raw resolution and original format preserved.</span>
+                </div>
+                <button type="button" class="btn-gold-sm" id="btn-trigger-upload">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg> Select Photos
+                </button>
+              </div>
+            </div>
+
+            <!-- Upload Progress Bar Container -->
+            <div id="upload-progress-container" class="upload-progress-container" style="display: none;">
+              <div class="upload-progress-header">
+                <span id="upload-progress-status"><span class="spin-dot"></span> Uploading to ImageKit...</span>
+                <span id="upload-progress-percent">0%</span>
+              </div>
+              <div class="upload-progress-track">
+                <div id="upload-progress-bar" class="upload-progress-fill" style="width: 0%;"></div>
+              </div>
             </div>
 
             <!-- Preset Photo Picker (Collapsible) -->
@@ -995,10 +1035,16 @@ export class AdminPortal {
               </div>
             </div>
 
-            <!-- Custom URL Input & File Simulation -->
-            <div class="image-input-row">
-              <input type="url" id="custom-image-url" placeholder="Paste image URL here (e.g. https://images.unsplash.com/...)" />
+            <!-- Custom URL Input (Collapsible) -->
+            <div class="image-input-row" id="url-input-drawer" style="display: none;">
+              <input type="url" id="custom-image-url" placeholder="Paste image URL here (e.g. https://...)" />
               <button type="button" class="btn-secondary-sm" id="btn-add-image-url">Add Photo</button>
+            </div>
+
+            <!-- Images Preview Grid Header -->
+            <div class="gallery-preview-header">
+              <span class="gallery-count-label"><strong id="gallery-count-num">${currentImages.length} / 5</strong> photos selected</span>
+              <span class="gallery-hint-text">Use arrows to reorder, "★ Set Cover" to designate main image.</span>
             </div>
 
             <!-- Images Preview Grid -->
@@ -1022,40 +1068,217 @@ export class AdminPortal {
       </div>
     `;
 
-    // Internal state for gallery images
+    // Internal state for gallery images and exact ImageKit file metadata
     let activeImages = [...currentImages];
+    let activeImageFiles = prop && Array.isArray(prop.imageFiles) ? [...prop.imageFiles] : [];
+    let unsavedUploadedFileIds = []; // Tracks files uploaded in this session that haven't been saved to Firestore
 
     const renderImagePreviews = () => {
       const grid = body.querySelector('#gallery-preview-grid');
+      const countNum = body.querySelector('#gallery-count-num');
+      const triggerBtn = body.querySelector('#btn-trigger-upload');
+
+      if (countNum) countNum.textContent = `${activeImages.length} / ${MAX_PHOTOS_PER_PROPERTY}`;
+
+      if (triggerBtn) {
+        if (activeImages.length >= MAX_PHOTOS_PER_PROPERTY) {
+          triggerBtn.disabled = true;
+          triggerBtn.style.opacity = '0.55';
+          triggerBtn.style.cursor = 'not-allowed';
+          triggerBtn.innerHTML = `Photo Limit Reached (${MAX_PHOTOS_PER_PROPERTY}/${MAX_PHOTOS_PER_PROPERTY})`;
+        } else {
+          triggerBtn.disabled = false;
+          triggerBtn.style.opacity = '1';
+          triggerBtn.style.cursor = 'pointer';
+          triggerBtn.innerHTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg> Select Photos (${activeImages.length}/${MAX_PHOTOS_PER_PROPERTY})`;
+        }
+      }
+
       if (!grid) return;
 
       if (activeImages.length === 0) {
-        grid.innerHTML = `<div class="empty-gallery-msg">No images added yet. Add at least one photo for this property.</div>`;
+        grid.innerHTML = `<div class="empty-gallery-msg">No images added yet. Click "Select Photos" above to add photos (up to 5 photos).</div>`;
         return;
       }
 
       grid.innerHTML = activeImages.map((imgUrl, idx) => `
         <div class="gallery-preview-item ${idx === 0 ? 'is-cover' : ''}">
           <img src="${imgUrl}" alt="Property Photo ${idx + 1}" />
-          ${idx === 0 ? '<span class="cover-badge">Cover Photo</span>' : ''}
-          <div class="img-preview-overlay">
+          ${idx === 0 ? '<span class="cover-badge">★ Cover Photo</span>' : ''}
+          <div class="img-preview-toolbar">
+            ${idx > 0 ? `<button type="button" class="btn-img-tool btn-make-cover" data-idx="${idx}" title="Set as Cover Photo">★ Set Cover</button>` : ''}
+            <div class="img-reorder-group">
+              ${idx > 0 ? `<button type="button" class="btn-img-tool btn-move-img" data-dir="left" data-idx="${idx}" title="Move earlier">←</button>` : ''}
+              ${idx < activeImages.length - 1 ? `<button type="button" class="btn-img-tool btn-move-img" data-dir="right" data-idx="${idx}" title="Move later">→</button>` : ''}
+            </div>
             <button type="button" class="btn-remove-img" data-idx="${idx}" title="Remove photo">&times;</button>
           </div>
         </div>
       `).join('');
+
+      // Attach Set Cover handler (synchronizes both activeImages and activeImageFiles)
+      grid.querySelectorAll('.btn-make-cover').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+          e.stopPropagation();
+          const moveIdx = parseInt(btn.getAttribute('data-idx'));
+          const [movedUrl] = activeImages.splice(moveIdx, 1);
+          activeImages.unshift(movedUrl);
+
+          const fileIdx = activeImageFiles.findIndex(f => f && f.url === movedUrl);
+          if (fileIdx > -1) {
+            const [movedFile] = activeImageFiles.splice(fileIdx, 1);
+            activeImageFiles.unshift(movedFile);
+          }
+          renderImagePreviews();
+        });
+      });
+
+      // Attach Move Earlier / Move Later handlers
+      grid.querySelectorAll('.btn-move-img').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+          e.stopPropagation();
+          const moveIdx = parseInt(btn.getAttribute('data-idx'));
+          const dir = btn.getAttribute('data-dir');
+          const targetIdx = dir === 'left' ? moveIdx - 1 : moveIdx + 1;
+          if (targetIdx >= 0 && targetIdx < activeImages.length) {
+            const urlA = activeImages[moveIdx];
+            const urlB = activeImages[targetIdx];
+            activeImages[moveIdx] = urlB;
+            activeImages[targetIdx] = urlA;
+
+            const fileIdxA = activeImageFiles.findIndex(f => f && f.url === urlA);
+            const fileIdxB = activeImageFiles.findIndex(f => f && f.url === urlB);
+            if (fileIdxA > -1 && fileIdxB > -1) {
+              const tempF = activeImageFiles[fileIdxA];
+              activeImageFiles[fileIdxA] = activeImageFiles[fileIdxB];
+              activeImageFiles[fileIdxB] = tempF;
+            }
+            renderImagePreviews();
+          }
+        });
+      });
 
       // Attach remove photo handlers
       grid.querySelectorAll('.btn-remove-img').forEach(btn => {
         btn.addEventListener('click', (e) => {
           e.stopPropagation();
           const removeIdx = parseInt(btn.getAttribute('data-idx'));
+          const removedUrl = activeImages[removeIdx];
           activeImages.splice(removeIdx, 1);
+
+          const fileIdx = activeImageFiles.findIndex(f => f && f.url === removedUrl);
+          if (fileIdx > -1) {
+            const [removedFile] = activeImageFiles.splice(fileIdx, 1);
+            if (removedFile && removedFile.fileId) {
+              if (unsavedUploadedFileIds.includes(removedFile.fileId)) {
+                // If it was uploaded in this session but unsaved, clean it up immediately
+                cleanupUnsavedImageFiles([removedFile.fileId]).catch(() => {});
+                unsavedUploadedFileIds = unsavedUploadedFileIds.filter(id => id !== removedFile.fileId);
+              } else if (isEdit && prop && prop.id) {
+                // If it's a previously saved image on an existing property, call verified delete
+                deletePropertyImageFile(prop.id, removedFile.fileId).catch(() => {});
+              }
+            }
+          }
           renderImagePreviews();
         });
       });
     };
 
     renderImagePreviews();
+
+    // Direct Upload Handlers
+    const triggerUploadBtn = body.querySelector('#btn-trigger-upload');
+    const fileInput = body.querySelector('#prop-image-file-input');
+
+    if (triggerUploadBtn && fileInput) {
+      triggerUploadBtn.addEventListener('click', () => {
+        if (activeImages.length >= MAX_PHOTOS_PER_PROPERTY) {
+          alert(`You have reached the maximum limit of ${MAX_PHOTOS_PER_PROPERTY} photos for this property.`);
+          return;
+        }
+        fileInput.click();
+      });
+    }
+
+    if (fileInput) {
+      fileInput.addEventListener('change', async (e) => {
+        const files = Array.from(e.target.files || []);
+        if (files.length === 0) return;
+
+        // Check 5-photo maximum limit
+        if (activeImages.length + files.length > MAX_PHOTOS_PER_PROPERTY) {
+          const available = Math.max(0, MAX_PHOTOS_PER_PROPERTY - activeImages.length);
+          alert(
+            `Photo Limit Notice:\nYou can upload a maximum of ${MAX_PHOTOS_PER_PROPERTY} photos per property.\nYou already have ${activeImages.length} photo(s) and can select at most ${available} more.`
+          );
+          fileInput.value = '';
+          return;
+        }
+
+        // Validate all files first (format and 10MB limit)
+        for (const f of files) {
+          const val = validateImageFile(f);
+          if (!val.valid) {
+            alert(`File "${f.name}" is invalid:\n${val.error}`);
+            fileInput.value = '';
+            return;
+          }
+        }
+
+        const propIdForUpload = prop ? prop.id : `prop_${Date.now()}`;
+        const progressBox = body.querySelector('#upload-progress-container');
+        const progressBar = body.querySelector('#upload-progress-bar');
+        const progressStatus = body.querySelector('#upload-progress-status');
+        const progressPercent = body.querySelector('#upload-progress-percent');
+
+        if (progressBox) progressBox.style.display = 'block';
+        if (triggerUploadBtn) triggerUploadBtn.disabled = true;
+        fileInput.disabled = true;
+
+        try {
+          const result = await uploadMultiplePropertyImages(
+            files,
+            propIdForUpload,
+            activeImages.length,
+            (percent, fileIdx, totalFiles) => {
+              if (progressBar) progressBar.style.width = `${percent}%`;
+              if (progressPercent) progressPercent.textContent = `${percent}%`;
+              if (progressStatus) progressStatus.textContent = `Uploading photo ${fileIdx} of ${totalFiles} (${percent}%)...`;
+            }
+          );
+
+          if (result.successful && result.successful.length > 0) {
+            for (const item of result.successful) {
+              activeImages.push(item.url);
+              activeImageFiles.push({
+                url: item.url,
+                fileId: item.fileId,
+                name: item.name,
+                size: item.size
+              });
+              if (item.fileId) {
+                unsavedUploadedFileIds.push(item.fileId);
+              }
+            }
+            renderImagePreviews();
+            showToastNotification('Photos Uploaded!', `Added ${result.successful.length} photo(s) to property.`);
+          }
+
+          if (result.failed && result.failed.length > 0) {
+            alert(`Notice: ${result.failed.length} photo(s) could not be uploaded:\n\n` + result.failed.map(f => `• ${f.name}:\n  ${f.error}`).join('\n\n'));
+          }
+        } catch (uploadErr) {
+          console.error('Image upload failed:', uploadErr);
+          alert(`Image upload error:\n${uploadErr.message || 'Please check your connection and try again.'}`);
+        } finally {
+          if (progressBox) progressBox.style.display = 'none';
+          if (triggerUploadBtn) triggerUploadBtn.disabled = false;
+          fileInput.disabled = false;
+          fileInput.value = '';
+        }
+      });
+    }
 
     // Toggle Preset Library
     const togglePresetBtn = body.querySelector('#btn-toggle-preset-picker');
@@ -1068,6 +1291,10 @@ export class AdminPortal {
 
       presetDrawer.querySelectorAll('.preset-thumb-card').forEach(card => {
         card.addEventListener('click', () => {
+          if (activeImages.length >= MAX_PHOTOS_PER_PROPERTY) {
+            alert(`Maximum limit of ${MAX_PHOTOS_PER_PROPERTY} photos reached.`);
+            return;
+          }
           const url = card.getAttribute('data-url');
           if (url && !activeImages.includes(url)) {
             activeImages.push(url);
@@ -1077,11 +1304,25 @@ export class AdminPortal {
       });
     }
 
+    // Toggle URL Input
+    const toggleUrlBtn = body.querySelector('#btn-toggle-url-input');
+    const urlDrawer = body.querySelector('#url-input-drawer');
+    if (toggleUrlBtn && urlDrawer) {
+      toggleUrlBtn.addEventListener('click', () => {
+        const isHidden = urlDrawer.style.display === 'none';
+        urlDrawer.style.display = isHidden ? 'flex' : 'none';
+      });
+    }
+
     // Add Custom Image URL
     const addImgBtn = body.querySelector('#btn-add-image-url');
     const customImgInput = body.querySelector('#custom-image-url');
     if (addImgBtn && customImgInput) {
       addImgBtn.addEventListener('click', () => {
+        if (activeImages.length >= MAX_PHOTOS_PER_PROPERTY) {
+          alert(`Maximum limit of ${MAX_PHOTOS_PER_PROPERTY} photos reached.`);
+          return;
+        }
         const val = customImgInput.value.trim();
         if (val) {
           activeImages.push(val);
@@ -1091,10 +1332,16 @@ export class AdminPortal {
       });
     }
 
-    // Back to inventory
+    // Back to inventory with safe unsaved cleanup
     const cancelBtn = body.querySelector('#btn-cancel-edit');
     if (cancelBtn) {
-      cancelBtn.addEventListener('click', () => this.switchTab('properties'));
+      cancelBtn.addEventListener('click', () => {
+        if (unsavedUploadedFileIds.length > 0) {
+          cleanupUnsavedImageFiles([...unsavedUploadedFileIds]).catch(() => {});
+          unsavedUploadedFileIds = [];
+        }
+        this.switchTab('properties');
+      });
     }
 
     // Helper to extract form data
@@ -1119,6 +1366,7 @@ export class AdminPortal {
         facilities: selectedFacilities,
         suitableFor: selectedSuitable.length > 0 ? selectedSuitable : ['Family', 'Couples'],
         images: activeImages.length > 0 ? activeImages : ['https://images.unsplash.com/photo-1545324418-cc1a3fa10c00?auto=format&fit=crop&w=1200&q=80'],
+        imageFiles: activeImageFiles,
         published: publishedStatus
       };
     };
@@ -1128,6 +1376,7 @@ export class AdminPortal {
     form.addEventListener('submit', async (e) => {
       e.preventDefault();
       const data = getFormData(true);
+      unsavedUploadedFileIds = []; // Committed to Firestore
 
       if (isEdit) {
         const updated = store.updateProperty(this.editingPropertyId, data);
@@ -1151,6 +1400,7 @@ export class AdminPortal {
           return;
         }
         const data = getFormData(false);
+        unsavedUploadedFileIds = []; // Committed to Firestore
 
         if (isEdit) {
           store.updateProperty(this.editingPropertyId, data);
@@ -1852,7 +2102,7 @@ export class AdminPortal {
         <div class="locations-header-card">
           <div>
             <h3>Kochi Coverage Areas</h3>
-            <p class="text-xs text-muted">Manage active hubs across Greater Cochin region.</p>
+            <p class="text-xs text-muted">Manage active hubs across Greater Cochin region. Synced across all devices in real-time.</p>
           </div>
           <button class="btn-gold-sm" id="btn-show-add-loc">+ Add New Location</button>
         </div>
@@ -1880,25 +2130,80 @@ export class AdminPortal {
               <input type="text" id="new-loc-desc" placeholder="Brief highlight of this area..." />
             </div>
             <div class="drawer-actions">
-              <button type="submit" class="btn-gold-sm">Save Location</button>
+              <button type="submit" class="btn-gold-sm" id="btn-submit-add-loc">Save Location</button>
               <button type="button" class="btn-outline-sm" id="btn-cancel-add-loc">Cancel</button>
             </div>
           </form>
         </div>
 
+        <!-- Edit Location Modal / Drawer (hidden by default) -->
+        <div class="add-loc-drawer edit-loc-drawer" id="edit-loc-drawer" style="display: none; border-color: var(--color-gold);">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+            <h4 style="color: var(--color-gold); margin: 0;">Edit Kochi Neighborhood</h4>
+            <button type="button" class="btn-text-muted" id="btn-close-edit-loc" style="font-size: 1.2rem; cursor: pointer; background: none; border: none; color: var(--color-text-muted);">&times;</button>
+          </div>
+          <form id="form-edit-loc" class="add-loc-form">
+            <input type="hidden" id="edit-loc-id" />
+            <div class="form-grid-3col">
+              <div class="form-field">
+                <label>Neighborhood Name *</label>
+                <input type="text" id="edit-loc-name" required />
+              </div>
+              <div class="form-field">
+                <label>Key Landmark *</label>
+                <input type="text" id="edit-loc-landmark" required />
+              </div>
+              <div class="form-field">
+                <label>Photo URL (Optional)</label>
+                <input type="url" id="edit-loc-img" />
+              </div>
+            </div>
+            <div class="form-field full-width">
+              <label>Description</label>
+              <input type="text" id="edit-loc-desc" />
+            </div>
+            <div class="drawer-actions">
+              <button type="submit" class="btn-gold-sm" id="btn-submit-edit-loc">Update Location</button>
+              <button type="button" class="btn-outline-sm" id="btn-cancel-edit-loc">Cancel</button>
+            </div>
+          </form>
+        </div>
+
+        <!-- Location Dependency Warning Dialog / Modal (hidden by default) -->
+        <div class="loc-warning-overlay" id="loc-warning-overlay" style="display: none;">
+          <div class="loc-warning-box">
+            <div class="loc-warning-icon">
+              <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#f59e0b" stroke-width="2"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+            </div>
+            <h4 id="loc-warning-title">Cannot Delete Location</h4>
+            <div class="loc-warning-body" id="loc-warning-body"></div>
+            <div class="loc-warning-actions">
+              <button type="button" class="btn-gold-sm" id="btn-dismiss-warning">Understood</button>
+            </div>
+          </div>
+        </div>
+
         <div class="locations-cards-grid">
           ${locations.map(loc => {
-            const count = stats.locationStats[loc.name] || 0;
+            const count = (stats.locationStats && stats.locationStats[loc.name]) || 0;
             return `
-              <div class="admin-loc-card">
+              <div class="admin-loc-card" data-loc-id="${loc.id}">
                 <img src="${loc.image}" alt="${loc.name}" class="loc-card-img" />
                 <div class="loc-card-body">
                   <div class="loc-card-title-row">
                     <h4>${loc.name}</h4>
-                    <span class="loc-badge-count">${count} properties</span>
+                    <span class="loc-badge-count">${count} ${count === 1 ? 'property' : 'properties'}</span>
                   </div>
                   <div class="loc-landmark-tag">${loc.landmark}</div>
-                  <p class="loc-card-desc">${loc.description}</p>
+                  <p class="loc-card-desc">${loc.description || 'Prime residential location in Kochi.'}</p>
+                  <div class="loc-card-actions">
+                    <button type="button" class="btn-loc-action btn-edit-loc" data-id="${loc.id}">
+                      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg> Edit
+                    </button>
+                    <button type="button" class="btn-loc-action btn-delete-loc" data-id="${loc.id}" data-name="${loc.name}">
+                      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/></svg> Delete
+                    </button>
+                  </div>
                 </div>
               </div>
             `;
@@ -1907,36 +2212,187 @@ export class AdminPortal {
       </div>
     `;
 
+    // Add Location logic
     const showAddBtn = body.querySelector('#btn-show-add-loc');
-    const drawer = body.querySelector('#add-loc-drawer');
-    const cancelBtn = body.querySelector('#btn-cancel-add-loc');
-    const form = body.querySelector('#form-add-loc');
+    const addDrawer = body.querySelector('#add-loc-drawer');
+    const cancelAddBtn = body.querySelector('#btn-cancel-add-loc');
+    const addForm = body.querySelector('#form-add-loc');
 
-    if (showAddBtn && drawer) {
+    // Edit Location logic
+    const editDrawer = body.querySelector('#edit-loc-drawer');
+    const cancelEditBtn = body.querySelector('#btn-cancel-edit-loc');
+    const closeEditBtn = body.querySelector('#btn-close-edit-loc');
+    const editForm = body.querySelector('#form-edit-loc');
+
+    // Warning overlay
+    const warningOverlay = body.querySelector('#loc-warning-overlay');
+    const dismissWarningBtn = body.querySelector('#btn-dismiss-warning');
+    if (dismissWarningBtn && warningOverlay) {
+      dismissWarningBtn.addEventListener('click', () => {
+        warningOverlay.style.display = 'none';
+      });
+    }
+
+    if (showAddBtn && addDrawer) {
       showAddBtn.addEventListener('click', () => {
-        drawer.style.display = drawer.style.display === 'none' ? 'block' : 'none';
+        addDrawer.style.display = addDrawer.style.display === 'none' ? 'block' : 'none';
+        if (editDrawer) editDrawer.style.display = 'none';
       });
     }
 
-    if (cancelBtn && drawer) {
-      cancelBtn.addEventListener('click', () => {
-        drawer.style.display = 'none';
+    if (cancelAddBtn && addDrawer) {
+      cancelAddBtn.addEventListener('click', () => {
+        addDrawer.style.display = 'none';
       });
     }
 
-    if (form) {
-      form.addEventListener('submit', (e) => {
+    if (cancelEditBtn && editDrawer) {
+      cancelEditBtn.addEventListener('click', () => {
+        editDrawer.style.display = 'none';
+      });
+    }
+
+    if (closeEditBtn && editDrawer) {
+      closeEditBtn.addEventListener('click', () => {
+        editDrawer.style.display = 'none';
+      });
+    }
+
+    // Submit Add Location
+    if (addForm) {
+      addForm.addEventListener('submit', async (e) => {
         e.preventDefault();
         const name = body.querySelector('#new-loc-name').value.trim();
         const landmark = body.querySelector('#new-loc-landmark').value.trim();
         const image = body.querySelector('#new-loc-img').value.trim() || 'https://images.unsplash.com/photo-1545324418-cc1a3fa10c00?auto=format&fit=crop&w=800&q=80';
         const description = body.querySelector('#new-loc-desc').value.trim() || 'Prime residential location in Kochi.';
 
-        store.addLocation({ name, landmark, image, description });
-        alert(`Location "${name}" added successfully!`);
-        drawer.style.display = 'none';
+        // Prevent duplicate location names
+        if (store.isDuplicateLocation(name)) {
+          alert(`Cannot add location:\nA location named "${name}" already exists. Please choose a unique name.`);
+          return;
+        }
+
+        const submitBtn = body.querySelector('#btn-submit-add-loc');
+        if (submitBtn) {
+          submitBtn.disabled = true;
+          submitBtn.textContent = 'Saving...';
+        }
+
+        try {
+          await store.addLocation({ name, landmark, image, description });
+          showToastNotification('Location Added', `"${name}" added to coverage.`);
+          addDrawer.style.display = 'none';
+          this.renderLocationsContent();
+        } catch (err) {
+          alert(`Failed to add location: ${err.message}`);
+          if (submitBtn) {
+            submitBtn.disabled = false;
+            submitBtn.textContent = 'Save Location';
+          }
+        }
       });
     }
+
+    // Submit Edit Location
+    if (editForm) {
+      editForm.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const id = body.querySelector('#edit-loc-id').value;
+        const name = body.querySelector('#edit-loc-name').value.trim();
+        const landmark = body.querySelector('#edit-loc-landmark').value.trim();
+        const image = body.querySelector('#edit-loc-img').value.trim();
+        const description = body.querySelector('#edit-loc-desc').value.trim();
+
+        // Prevent duplicate location names
+        if (store.isDuplicateLocation(name, id)) {
+          alert(`Cannot rename location:\nAnother location named "${name}" already exists. Please choose a unique name.`);
+          return;
+        }
+
+        const submitBtn = body.querySelector('#btn-submit-edit-loc');
+        if (submitBtn) {
+          submitBtn.disabled = true;
+          submitBtn.textContent = 'Updating...';
+        }
+
+        try {
+          await store.updateLocation(id, { name, landmark, image, description });
+          showToastNotification('Location Updated', `"${name}" updated successfully.`);
+          editDrawer.style.display = 'none';
+          this.renderLocationsContent();
+        } catch (err) {
+          alert(`Failed to update location: ${err.message}`);
+          if (submitBtn) {
+            submitBtn.disabled = false;
+            submitBtn.textContent = 'Update Location';
+          }
+        }
+      });
+    }
+
+    // Attach Edit button handlers to cards
+    body.querySelectorAll('.btn-edit-loc').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const id = btn.getAttribute('data-id');
+        const loc = store.getLocationById(id);
+        if (!loc) return;
+
+        body.querySelector('#edit-loc-id').value = loc.id;
+        body.querySelector('#edit-loc-name').value = loc.name;
+        body.querySelector('#edit-loc-landmark').value = loc.landmark || '';
+        body.querySelector('#edit-loc-img').value = loc.image || '';
+        body.querySelector('#edit-loc-desc').value = loc.description || '';
+
+        if (addDrawer) addDrawer.style.display = 'none';
+        if (editDrawer) {
+          editDrawer.style.display = 'block';
+          editDrawer.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+        }
+      });
+    });
+
+    // Attach Delete button handlers to cards with dependency check
+    body.querySelectorAll('.btn-delete-loc').forEach(btn => {
+      btn.addEventListener('click', async (e) => {
+        e.stopPropagation();
+        const id = btn.getAttribute('data-id');
+        const name = btn.getAttribute('data-name');
+
+        // Check if any existing properties use this location
+        const depCheck = store.canDeleteLocation(name);
+        if (!depCheck.allowed) {
+          // Block deletion with warning listing the properties
+          const warningTitle = body.querySelector('#loc-warning-title');
+          const warningBody = body.querySelector('#loc-warning-body');
+          if (warningTitle) warningTitle.textContent = `Cannot Delete "${name}"`;
+          if (warningBody) {
+            warningBody.innerHTML = `
+              <p>This location is currently assigned to <strong>${depCheck.count} property listing(s)</strong>:</p>
+              <ul class="loc-dep-list">
+                ${depCheck.properties.map(p => `<li><strong>${p.title}</strong> (Rent: ₹${p.rent.toLocaleString('en-IN')})</li>`).join('')}
+              </ul>
+              <p class="loc-warning-sub">To preserve catalog integrity, you must reassign or remove these properties before this location can be deleted.</p>
+            `;
+          }
+          if (warningOverlay) warningOverlay.style.display = 'flex';
+          return;
+        }
+
+        // Location has 0 properties: ask for confirmation
+        const confirmed = confirm(`Are you sure you want to delete the location "${name}"?\n\nThis will remove it from all public search filters and coverage maps.`);
+        if (!confirmed) return;
+
+        try {
+          await store.deleteLocation(id);
+          showToastNotification('Location Deleted', `"${name}" removed from coverage.`);
+          this.renderLocationsContent();
+        } catch (err) {
+          alert(`Failed to delete location: ${err.message}`);
+        }
+      });
+    });
   }
 
   // ================= SETTINGS & DATA TAB =================

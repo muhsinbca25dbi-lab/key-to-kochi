@@ -4,9 +4,19 @@ export function renderBHKDonutChart(containerId, bhkStats) {
   const container = document.getElementById(containerId);
   if (!container) return;
 
-  const labels = ['1 BHK', '2 BHK', '3 BHK', '4 BHK'];
-  const colors = ['#38bdf8', '#818cf8', '#d4af37', '#f59e0b'];
-  const values = labels.map(l => bhkStats[l] || 0);
+  const labels = ['1 BHK', '2 BHK', '3 BHK', 'Sharing Property'];
+  if (bhkStats && bhkStats['4 BHK'] > 0) {
+    labels.push('4 BHK');
+  }
+  const colorMap = {
+    '1 BHK': '#38bdf8',
+    '2 BHK': '#818cf8',
+    '3 BHK': '#d4af37',
+    'Sharing Property': '#10b981',
+    '4 BHK': '#f59e0b'
+  };
+  const colors = labels.map(l => colorMap[l] || '#a855f7');
+  const values = labels.map(l => (bhkStats && bhkStats[l]) || 0);
   const total = values.reduce((a, b) => a + b, 0);
 
   if (total === 0) {

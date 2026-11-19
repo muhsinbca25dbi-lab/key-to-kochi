@@ -16,6 +16,8 @@ import {
   getDocs,
   addDoc,
   setDoc,
+  updateDoc,
+  deleteDoc,
   query,
   where,
   serverTimestamp
@@ -63,6 +65,69 @@ export async function getLocations() {
   } catch (e) {
     console.warn('[KTK Firestore] getLocations failed:', e.message);
     return [];
+  }
+}
+
+/**
+ * Add a new location to Firestore.
+ * @param {object} locData
+ * @returns {Promise<string|null>}
+ */
+export async function addLocation(locData) {
+  if (!isReady()) return null;
+  try {
+    const locId = locData.id || doc(collection(db, 'locations')).id;
+    const docRef = doc(db, 'locations', locId);
+    await setDoc(docRef, {
+      ...locData,
+      id: locId,
+      createdAt: serverTimestamp()
+    });
+    console.info('[KTK Firestore] Location added:', locId);
+    return locId;
+  } catch (e) {
+    console.warn('[KTK Firestore] addLocation failed:', e.message);
+    return null;
+  }
+}
+
+/**
+ * Update an existing location in Firestore.
+ * @param {string} id
+ * @param {object} updateData
+ * @returns {Promise<boolean>}
+ */
+export async function updateLocation(id, updateData) {
+  if (!isReady() || !id) return false;
+  try {
+    const docRef = doc(db, 'locations', id);
+    await updateDoc(docRef, {
+      ...updateData,
+      updatedAt: serverTimestamp()
+    });
+    console.info('[KTK Firestore] Location updated:', id);
+    return true;
+  } catch (e) {
+    console.warn('[KTK Firestore] updateLocation failed:', e.message);
+    return false;
+  }
+}
+
+/**
+ * Delete a location from Firestore.
+ * @param {string} id
+ * @returns {Promise<boolean>}
+ */
+export async function deleteLocation(id) {
+  if (!isReady() || !id) return false;
+  try {
+    const docRef = doc(db, 'locations', id);
+    await deleteDoc(docRef);
+    console.info('[KTK Firestore] Location deleted:', id);
+    return true;
+  } catch (e) {
+    console.warn('[KTK Firestore] deleteLocation failed:', e.message);
+    return false;
   }
 }
 

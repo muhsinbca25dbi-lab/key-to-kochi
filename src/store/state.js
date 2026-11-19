@@ -55,7 +55,7 @@ class Store {
         this.state.properties = properties.map(p => {
           if (!p.suitableFor || !Array.isArray(p.suitableFor) || p.suitableFor.length === 0) {
             const bhk = p.bhk || '';
-            if (bhk === '1 BHK') return { ...p, suitableFor: ['Bachelors', 'Couples'] };
+            if (bhk === '1 BHK' || bhk === 'Sharing Property') return { ...p, suitableFor: ['Bachelors', 'Couples'] };
             if (bhk === '4 BHK') return { ...p, suitableFor: ['Family'] };
             return { ...p, suitableFor: ['Family', 'Couples'] };
           }
@@ -111,7 +111,7 @@ class Store {
             this.state.properties = data.properties.map(p => {
               if (!p.suitableFor || !Array.isArray(p.suitableFor) || p.suitableFor.length === 0) {
                 const bhk = p.bhk || '';
-                if (bhk === '1 BHK') return { ...p, suitableFor: ['Bachelors', 'Couples'] };
+                if (bhk === '1 BHK' || bhk === 'Sharing Property') return { ...p, suitableFor: ['Bachelors', 'Couples'] };
                 if (bhk === '4 BHK') return { ...p, suitableFor: ['Family'] };
                 return { ...p, suitableFor: ['Family', 'Couples'] };
               }
@@ -191,7 +191,7 @@ class Store {
           parsed.properties = parsed.properties.map(p => {
             if (!p.suitableFor || !Array.isArray(p.suitableFor) || p.suitableFor.length === 0) {
               const bhk = p.bhk || '';
-              if (bhk === '1 BHK') return { ...p, suitableFor: ['Bachelors', 'Couples'] };
+              if (bhk === '1 BHK' || bhk === 'Sharing Property') return { ...p, suitableFor: ['Bachelors', 'Couples'] };
               if (bhk === '4 BHK') return { ...p, suitableFor: ['Family'] };
               return { ...p, suitableFor: ['Family', 'Couples'] };
             }
@@ -516,15 +516,131 @@ class Store {
     return [...this.state.locations];
   }
 
-  addLocation(locationData) {
-    const newLoc = {
-      id: 'loc-' + Date.now(),
-      ...locationData
+  getLocationById(id) {
+    return this.state.locations.find(l => l.id === id);
+  }
+
+  /**
+   * Check if a location with the same name already exists.
+   * Case-insensitive match, optionally excluding a specific location ID (for edits).
+   */
+  isDuplicateLocation(name, excludeId = null) {
+    if (!name || typeof name !== 'string') return false;
+    const clean = name.trim().toLowerCase();
+    return this.state.locations.some(l => 
+      l.id !== excludeId && l.name && l.name.trim().toLowerCase() === clean
+    );
+  }
+
+  /**
+   * Check whether a location can be safely deleted.
+   * Prohibits deletion if any existing property is assigned to it.
+   */
+  canDeleteLocation(locationName) {
+    if (!locationName) return { allowed: false, count: 0, properties: [] };
+    const clean = String(locationName).trim().toLowerCase();
+    const assignedProps = this.state.properties.filter(p => 
+      p.location && p.location.trim().toLowerCase() === clean
+    );
+    return {
+      allowed: assignedProps.length === 0,
+      count: assignedProps.length,
+      properties: assignedProps
     };
+  }
+
+  addLocation(locationData) {
+    const cleanName = (locationData.name || '').trim();
+    if (!cleanName) {
+      throw new Error('Location name is required.');
+    }
+    if (this.isDuplicateLocation(cleanName)) {
+      throw new Error(`Location "${cleanName}" already exists. Duplicate locations are not allowed.`);
+    }
+
+    const newLoc = {
+      id: locationData.id || ('loc-' + Date.now()),
+      name: cleanName,
+      landmark: (locationData.landmark || '').trim(),
+      image: locationData.image || 'https://images.unsplash.com/photo-1545324418-cc1a3fa10c00?auto=format&fit=crop&w=800&q=80',
+      description: (locationData.description || '').trim(),
+      createdAt: new Date().toISOString()
+    };
+
     this.state.locations.push(newLoc);
     this.notify('LOCATION_ADDED', newLoc);
     this._adminSync('POST', '/api/admin/locations', newLoc);
+    getFirestoreService().then(fs => {
+      if (fs) fs.addLocation(newLoc).catch(() => {});
+    });
     return newLoc;
+  }
+
+  updateLocation(id, updateData) {
+    const index = this.state.locations.findIndex(l => l.id === id);
+    if (index === -1) return null;
+
+    const oldLoc = this.state.locations[index];
+    const newName = updateData.name !== undefined ? updateData.name.trim() : oldLoc.name;
+
+    if (!newName) {
+      throw new Error('Location name cannot be empty.');
+    }
+
+    if (this.isDuplicateLocation(newName, id)) {
+      throw new Error(`Another location named "${newName}" already exists.`);
+    }
+
+    const updated = {
+      ...oldLoc,
+      ...updateData,
+      name: newName,
+      updatedAt: new Date().toISOString()
+    };
+
+    this.state.locations[index] = updated;
+
+    // If location name changed, reassign all properties that used the old name so references stay valid!
+    if (oldLoc.name && oldLoc.name !== newName) {
+      this.state.properties.forEach(p => {
+        if (p.location && p.location.trim().toLowerCase() === oldLoc.name.trim().toLowerCase()) {
+          p.location = newName;
+          this._adminSync('PUT', `/api/admin/properties/${p.id}`, p);
+        }
+      });
+    }
+
+    this.notify('LOCATION_UPDATED', updated);
+    this._adminSync('PUT', `/api/admin/locations/${id}`, updated);
+    getFirestoreService().then(fs => {
+      if (fs) fs.updateLocation(id, updated).catch(() => {});
+    });
+    return updated;
+  }
+
+  deleteLocation(id) {
+    const loc = this.state.locations.find(l => l.id === id);
+    if (!loc) return { success: false, error: 'Location not found.' };
+
+    const check = this.canDeleteLocation(loc.name);
+    if (!check.allowed) {
+      return {
+        success: false,
+        error: `Cannot delete location "${loc.name}": It is assigned to ${check.count} active property listing(s). Reassign these properties before deleting this location.`,
+        count: check.count,
+        properties: check.properties
+      };
+    }
+
+    const index = this.state.locations.findIndex(l => l.id === id);
+    const removed = this.state.locations.splice(index, 1)[0];
+
+    this.notify('LOCATION_DELETED', removed);
+    this._adminSync('DELETE', `/api/admin/locations/${id}`);
+    getFirestoreService().then(fs => {
+      if (fs) fs.deleteLocation(id).catch(() => {});
+    });
+    return { success: true, location: removed };
   }
 
   // --- SUBSCRIBERS ---
@@ -571,11 +687,12 @@ class Store {
     const available = published.filter(p => p.availability === 'Available').length;
     const rented = published.filter(p => p.availability === 'Rented').length;
 
-    // BHK breakdown
+    // BHK breakdown (including Sharing Property and historical 4 BHK)
     const bhkStats = {
       '1 BHK': published.filter(p => p.bhk === '1 BHK').length,
       '2 BHK': published.filter(p => p.bhk === '2 BHK').length,
       '3 BHK': published.filter(p => p.bhk === '3 BHK').length,
+      'Sharing Property': published.filter(p => p.bhk === 'Sharing Property').length,
       '4 BHK': published.filter(p => p.bhk === '4 BHK').length
     };
 

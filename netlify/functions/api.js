@@ -55,6 +55,25 @@ function getAdminDb() {
   }
 }
 
+/**
+ * Safely delete an individual file from ImageKit via REST API using server-side Basic Auth.
+ * Isolated try/catch: non-fatal if file was already deleted manually.
+ */
+async function deleteImageKitFile(fileId, privateKey) {
+  if (!fileId || !privateKey) return false;
+  try {
+    const authHeader = 'Basic ' + Buffer.from(privateKey + ':').toString('base64');
+    const resp = await fetch(`https://api.imagekit.io/v1/files/${encodeURIComponent(fileId)}`, {
+      method: 'DELETE',
+      headers: { Authorization: authHeader }
+    });
+    return resp.ok || resp.status === 404;
+  } catch (err) {
+    console.warn('[KTK ImageKit] deleteImageKitFile non-fatal error:', fileId, err.message);
+    return false;
+  }
+}
+
 // In-memory fallback for warm Lambda executions (used when Admin SDK not configured)
 const preAuthStore = new Map();
 const otpStore = new Map();
@@ -974,10 +993,140 @@ export const handler = async (event) => {
       return json(200, { ok: true, id: propId });
     }
 
+    // Verified individual image deletion: verifies that property owns the exact fileId
+    if (adminPath.match(/^\/properties\/([^/]+)\/images\/([^/]+)$/) && method === 'DELETE') {
+      const match = adminPath.match(/^\/properties\/([^/]+)\/images\/([^/]+)$/);
+      const propId = match[1];
+      const fileId = match[2];
+
+      const propDoc = await db.collection('properties').doc(propId).get();
+      if (!propDoc.exists) {
+        return json(404, { ok: false, error: 'Property not found.' });
+      }
+
+      const propData = propDoc.data();
+      const imageFiles = Array.isArray(propData.imageFiles) ? propData.imageFiles : [];
+      const targetFile = imageFiles.find(f => f && (f.fileId === fileId || f.id === fileId));
+
+      if (!targetFile) {
+        return json(403, { ok: false, error: 'File does not belong to this property or is not recognized.' });
+      }
+
+      // Safe deletion from ImageKit
+      const privateKey = cleanEnv(process.env.KTK_IMAGEKIT_PRIVATE_KEY);
+      if (privateKey) {
+        await deleteImageKitFile(fileId, privateKey);
+      }
+
+      // Remove from property document in Firestore
+      const updatedImageFiles = imageFiles.filter(f => f.fileId !== fileId && f.id !== fileId);
+      const updatedImages = (propData.images || []).filter(url => url !== targetFile.url);
+
+      await db.collection('properties').doc(propId).update({
+        imageFiles: updatedImageFiles,
+        images: updatedImages,
+        updatedAt: new Date().toISOString()
+      });
+
+      return json(200, { ok: true, deleted: fileId, propId });
+    }
+
     if (adminPath.startsWith('/properties/') && method === 'DELETE') {
       const propId = adminPath.split('/')[2];
-      await db.collection('properties').doc(propId).delete();
+      const propDocRef = db.collection('properties').doc(propId);
+      const propSnap = await propDocRef.get();
+
+      if (propSnap.exists) {
+        const propData = propSnap.data();
+
+        // 1. Guard against deleting demo properties or external legacy media
+        const isDemo = propId.startsWith('prop-') && parseInt(propId.replace('prop-', ''), 10) <= 10;
+
+        if (!isDemo && Array.isArray(propData.imageFiles)) {
+          const privateKey = cleanEnv(process.env.KTK_IMAGEKIT_PRIVATE_KEY);
+          if (privateKey) {
+            for (const imgFile of propData.imageFiles) {
+              const fileId = imgFile && (imgFile.fileId || imgFile.id);
+              // Only delete if it has a fileId and is not an external/Unsplash URL
+              if (fileId && typeof fileId === 'string' && (!imgFile.url || !imgFile.url.includes('unsplash.com'))) {
+                try {
+                  await deleteImageKitFile(fileId, privateKey);
+                } catch (delErr) {
+                  console.warn('[KTK Admin] Ignored non-fatal image deletion error for fileId:', fileId, delErr.message);
+                }
+              }
+            }
+          }
+        }
+      }
+
+      await propDocRef.delete();
       return json(200, { ok: true, deleted: propId });
+    }
+
+    // ── ImageKit Upload Auth & Unsaved Cleanup ───────────────────────────────
+    if (adminPath === '/images/auth' && method === 'GET') {
+      const privateKey = cleanEnv(process.env.KTK_IMAGEKIT_PRIVATE_KEY);
+      const publicKey = cleanEnv(process.env.KTK_IMAGEKIT_PUBLIC_KEY);
+      const urlEndpoint = cleanEnv(process.env.KTK_IMAGEKIT_URL_ENDPOINT);
+
+      if (!privateKey || !publicKey) {
+        return json(503, {
+          ok: false,
+          error: 'ImageKit is not configured. Please set KTK_IMAGEKIT_PUBLIC_KEY, KTK_IMAGEKIT_PRIVATE_KEY, and KTK_IMAGEKIT_URL_ENDPOINT in environment variables.'
+        });
+      }
+
+      const token = crypto.randomUUID();
+      const expire = Math.floor(Date.now() / 1000) + 1800; // 30 minutes
+      const signature = crypto.createHmac('sha1', privateKey).update(token + expire).digest('hex');
+
+      return json(200, {
+        ok: true,
+        token,
+        expire,
+        signature,
+        publicKey,
+        urlEndpoint
+      });
+    }
+
+    if (adminPath === '/images/cleanup-unsaved' && method === 'POST') {
+      const fileIds = Array.isArray(body && body.fileIds)
+        ? body.fileIds.filter(id => typeof id === 'string' && id.trim())
+        : [];
+
+      if (fileIds.length === 0) {
+        return json(200, { ok: true, cleaned: [] });
+      }
+
+      // Security check: verify that NONE of these fileIds belong to ANY existing saved property in Firestore!
+      // This protects existing saved properties completely from accidental deletion.
+      const snap = await db.collection('properties').get();
+      const allSavedFileIds = new Set();
+      snap.docs.forEach(doc => {
+        const data = doc.data();
+        if (Array.isArray(data.imageFiles)) {
+          data.imageFiles.forEach(f => {
+            if (f && (f.fileId || f.id)) allSavedFileIds.add(f.fileId || f.id);
+          });
+        }
+      });
+
+      const safeToDelete = fileIds.filter(id => !allSavedFileIds.has(id));
+      const privateKey = cleanEnv(process.env.KTK_IMAGEKIT_PRIVATE_KEY);
+
+      if (privateKey && safeToDelete.length > 0) {
+        for (const fileId of safeToDelete) {
+          try {
+            await deleteImageKitFile(fileId, privateKey);
+          } catch (e) {
+            console.warn('[KTK Admin] Ignored error cleaning unsaved file:', fileId, e.message);
+          }
+        }
+      }
+
+      return json(200, { ok: true, cleaned: safeToDelete });
     }
 
     // ── Enquiries ────────────────────────────────────────────────────────────
@@ -1043,6 +1192,21 @@ export const handler = async (event) => {
         : db.collection('locations').doc();
       await ref.set({ ...locData, id: ref.id });
       return json(200, { ok: true, id: ref.id });
+    }
+
+    if (adminPath.startsWith('/locations/') && (method === 'PUT' || method === 'PATCH')) {
+      const locId = adminPath.split('/')[2];
+      await db.collection('locations').doc(locId).set(
+        { ...body, id: locId, _updatedAt: new Date().toISOString() },
+        { merge: true }
+      );
+      return json(200, { ok: true, id: locId });
+    }
+
+    if (adminPath.startsWith('/locations/') && method === 'DELETE') {
+      const locId = adminPath.split('/')[2];
+      await db.collection('locations').doc(locId).delete();
+      return json(200, { ok: true, deleted: locId });
     }
 
     // ── Subscribers ──────────────────────────────────────────────────────────

@@ -1,7 +1,9 @@
 import { defineConfig } from 'vite';
 import { readFileSync, existsSync, writeFileSync, mkdirSync } from 'fs';
 import { join } from 'path';
-import { createHash, randomInt, randomBytes, createCipheriv, createDecipheriv } from 'crypto';
+import { createHash, createHmac, randomInt, randomBytes, createCipheriv, createDecipheriv } from 'crypto';
+import { initializeApp as initAdminApp, getApps as getAdminApps, cert as adminCert } from 'firebase-admin/app';
+import { getFirestore as getAdminFirestore } from 'firebase-admin/firestore';
 
 // ---------------------------------------------------------------------------
 // Helpers for Clean Environment Variables & Cryptographic Stateless Tokens
@@ -9,6 +11,126 @@ import { createHash, randomInt, randomBytes, createCipheriv, createDecipheriv } 
 function cleanEnv(val) {
   if (!val) return '';
   return String(val).trim().replace(/^["']|["']$/g, '');
+}
+
+// ---------------------------------------------------------------------------
+// Firebase Admin SDK — Local Firestore Instance
+// ---------------------------------------------------------------------------
+let localAdminDb = null;
+
+function getAdminDb(env) {
+  if (localAdminDb) return localAdminDb;
+
+  const projectId   = cleanEnv(env.KTK_FIREBASE_PROJECT_ID || env.VITE_FIREBASE_PROJECT_ID);
+  const clientEmail = cleanEnv(env.KTK_FIREBASE_CLIENT_EMAIL);
+  const privateKey  = cleanEnv(env.KTK_FIREBASE_PRIVATE_KEY).replace(/\\n/g, '\n');
+
+  if (!projectId || !clientEmail || !privateKey) {
+    return null;
+  }
+
+  try {
+    const app = getAdminApps().length
+      ? getAdminApps()[0]
+      : initAdminApp({
+          credential: adminCert({ projectId, clientEmail, privateKey }),
+          projectId
+        });
+
+    localAdminDb = getAdminFirestore(app);
+    return localAdminDb;
+  } catch (e) {
+    console.error('[KTK Local Admin SDK] Init failed:', e.message);
+    return null;
+  }
+}
+
+/**
+ * Safely delete an individual file from ImageKit via REST API using server-side Basic Auth.
+ * Returns { success: boolean, status?: number, error?: string }
+ */
+async function deleteImageKitFile(fileId, privateKey) {
+  if (!fileId || !privateKey) return { success: false, error: 'Missing fileId or privateKey' };
+  try {
+    const authHeader = 'Basic ' + Buffer.from(privateKey + ':').toString('base64');
+    const resp = await fetch(`https://api.imagekit.io/v1/files/${encodeURIComponent(fileId)}`, {
+      method: 'DELETE',
+      headers: { Authorization: authHeader }
+    });
+    // 200, 204 or 404 (already deleted/not found) are counted as successful removals
+    if (resp.ok || resp.status === 404) {
+      return { success: true, status: resp.status };
+    }
+    const errData = await resp.json().catch(() => ({}));
+    return { success: false, status: resp.status, error: errData.message || `HTTP ${resp.status}` };
+  } catch (err) {
+    return { success: false, error: err.message };
+  }
+}
+
+/**
+ * Sanitize and validate client property data for Firestore writes
+ */
+function sanitizePropertyInput(data) {
+  const sanitized = {};
+  if (typeof data.title === 'string' && data.title.trim()) {
+    sanitized.title = data.title.trim();
+  }
+  if (typeof data.type === 'string' && data.type.trim()) {
+    sanitized.type = data.type.trim();
+  }
+  if (typeof data.bhk === 'string' && data.bhk.trim()) {
+    sanitized.bhk = data.bhk.trim();
+  }
+  if (typeof data.rent === 'number' && !isNaN(data.rent) && data.rent >= 0) {
+    sanitized.rent = data.rent;
+  }
+  if (typeof data.deposit === 'number' && !isNaN(data.deposit) && data.deposit >= 0) {
+    sanitized.deposit = data.deposit;
+  }
+  if (typeof data.location === 'string' && data.location.trim()) {
+    sanitized.location = data.location.trim();
+  }
+  if (typeof data.furnishing === 'string' && data.furnishing.trim()) {
+    sanitized.furnishing = data.furnishing.trim();
+  }
+  if (typeof data.size === 'number' && !isNaN(data.size) && data.size >= 0) {
+    sanitized.size = data.size;
+  }
+  if (typeof data.bedrooms === 'number' && !isNaN(data.bedrooms) && data.bedrooms >= 0) {
+    sanitized.bedrooms = data.bedrooms;
+  }
+  if (typeof data.bathrooms === 'number' && !isNaN(data.bathrooms) && data.bathrooms >= 0) {
+    sanitized.bathrooms = data.bathrooms;
+  }
+  if (typeof data.availability === 'string' && data.availability.trim()) {
+    sanitized.availability = data.availability.trim();
+  }
+  if (typeof data.featured === 'boolean') {
+    sanitized.featured = data.featured;
+  }
+  if (typeof data.published === 'boolean') {
+    sanitized.published = data.published;
+  }
+  if (typeof data.address === 'string') {
+    sanitized.address = data.address.trim();
+  }
+  if (typeof data.description === 'string') {
+    sanitized.description = data.description.trim();
+  }
+  if (Array.isArray(data.facilities)) {
+    sanitized.facilities = data.facilities.filter(f => typeof f === 'string' && f.trim());
+  }
+  if (Array.isArray(data.suitableFor)) {
+    sanitized.suitableFor = data.suitableFor.filter(s => typeof s === 'string' && s.trim());
+  }
+  if (Array.isArray(data.images)) {
+    sanitized.images = data.images.filter(img => typeof img === 'string' && img.trim());
+  }
+  if (Array.isArray(data.imageFiles)) {
+    sanitized.imageFiles = data.imageFiles.filter(f => f && typeof f === 'object' && (f.fileId || f.id || f.url));
+  }
+  return sanitized;
 }
 
 function getServerSecret(env) {
@@ -460,7 +582,7 @@ async function sendPropertyAlertEmail(env, subscriberEmail, property, baseUrl) {
 // Main plugin factory
 // ---------------------------------------------------------------------------
 export default defineConfig(() => {
-  function handleApi(req, res, next) {
+  async function handleApi(req, res, next) {
     const env = loadEnv(process.cwd());
     const ADMIN_EMAIL = cleanEnv(env.KTK_ADMIN_EMAIL).toLowerCase();
     const secret = getServerSecret(env);
@@ -992,6 +1114,298 @@ export default defineConfig(() => {
       }
       subscribers.sort((a, b) => new Date(b.subscribedAt || 0) - new Date(a.subscribedAt || 0));
       return json(res, 200, { ok: true, subscribers });
+    }
+
+    // ── Admin: ImageKit Upload Auth ───────────────────────────────────────────
+    if (url === '/api/admin/images/auth' && req.method === 'GET') {
+      const authHeader = req.headers.authorization || '';
+      const token = authHeader.replace(/^Bearer\s+/i, '').trim();
+      const session = decryptToken(token, secret);
+      if (!session || session.type !== 'session' || session.role !== 'ADMIN' || session.expiresAt <= Date.now()) {
+        return json(res, 401, { ok: false, error: 'Unauthorized.' });
+      }
+
+      const privateKey = cleanEnv(env.KTK_IMAGEKIT_PRIVATE_KEY);
+      const publicKey = cleanEnv(env.KTK_IMAGEKIT_PUBLIC_KEY);
+      const urlEndpoint = cleanEnv(env.KTK_IMAGEKIT_URL_ENDPOINT);
+
+      if (!privateKey || !publicKey) {
+        return json(res, 503, {
+          ok: false,
+          error: 'ImageKit is not configured. Please set KTK_IMAGEKIT_PUBLIC_KEY, KTK_IMAGEKIT_PRIVATE_KEY, and KTK_IMAGEKIT_URL_ENDPOINT in .env file.'
+        });
+      }
+
+      const uploadToken = randomBytes(16).toString('hex');
+      const expire = Math.floor(Date.now() / 1000) + 1800; // 30 minutes
+      const signature = createHmac('sha1', privateKey).update(uploadToken + expire).digest('hex');
+
+      return json(res, 200, {
+        ok: true,
+        token: uploadToken,
+        expire,
+        signature,
+        publicKey,
+        urlEndpoint
+      });
+    }
+
+    // ── Admin: Cleanup Unsaved Uploads ────────────────────────────────────────
+    if (url === '/api/admin/images/cleanup-unsaved' && req.method === 'POST') {
+      const authHeader = req.headers.authorization || '';
+      const token = authHeader.replace(/^Bearer\s+/i, '').trim();
+      const session = decryptToken(token, secret);
+      if (!session || session.type !== 'session' || session.role !== 'ADMIN' || session.expiresAt <= Date.now()) {
+        return json(res, 401, { ok: false, error: 'Unauthorized.' });
+      }
+
+      readBody(req).then(async body => {
+        const fileIds = Array.isArray(body && body.fileIds)
+          ? body.fileIds.filter(id => typeof id === 'string' && id.trim())
+          : [];
+
+        if (fileIds.length === 0) {
+          return json(res, 200, { ok: true, cleaned: [] });
+        }
+
+        const privateKey = cleanEnv(env.KTK_IMAGEKIT_PRIVATE_KEY);
+        if (privateKey) {
+          const authHdr = 'Basic ' + Buffer.from(privateKey + ':').toString('base64');
+          for (const fileId of fileIds) {
+            try {
+              await fetch(`https://api.imagekit.io/v1/files/${encodeURIComponent(fileId)}`, {
+                method: 'DELETE',
+                headers: { Authorization: authHdr }
+              });
+            } catch (_) {}
+          }
+        }
+        return json(res, 200, { ok: true, cleaned: fileIds });
+      }).catch(() => json(res, 400, { ok: false, error: 'Invalid request.' }));
+      return;
+    }
+
+    // ── Admin: Verified Individual Image Delete ───────────────────────────────
+    const imgDelMatch = url.match(/^\/api\/admin\/properties\/([^/]+)\/images\/([^/]+)$/);
+    if (imgDelMatch && req.method === 'DELETE') {
+      const authHeader = req.headers.authorization || '';
+      const token = authHeader.replace(/^Bearer\s+/i, '').trim();
+      const session = decryptToken(token, secret);
+      if (!session || session.type !== 'session' || session.role !== 'ADMIN' || session.expiresAt <= Date.now()) {
+        return json(res, 401, { ok: false, error: 'Unauthorized.' });
+      }
+
+      const fileId = imgDelMatch[2];
+      const privateKey = cleanEnv(env.KTK_IMAGEKIT_PRIVATE_KEY);
+      if (privateKey) {
+        try {
+          const authHdr = 'Basic ' + Buffer.from(privateKey + ':').toString('base64');
+          await fetch(`https://api.imagekit.io/v1/files/${encodeURIComponent(fileId)}`, {
+            method: 'DELETE',
+            headers: { Authorization: authHdr }
+          });
+        } catch (_) {}
+      }
+      return json(res, 200, { ok: true, deleted: fileId });
+    }
+
+    // ── Admin: Create Property in Firestore (POST) ───────────────────────────
+    if (url === '/api/admin/properties' && req.method === 'POST') {
+      const authHeader = req.headers.authorization || '';
+      const token = authHeader.replace(/^Bearer\s+/i, '').trim();
+      const session = decryptToken(token, secret);
+      if (!session || session.type !== 'session' || session.role !== 'ADMIN' || session.expiresAt <= Date.now()) {
+        return json(res, 401, { ok: false, error: 'Unauthorized.' });
+      }
+
+      readBody(req).then(async body => {
+        if (!body || typeof body !== 'object' || !body.id || typeof body.id !== 'string') {
+          return json(res, 400, { ok: false, error: 'Property id is required.' });
+        }
+
+        const propId = body.id.trim();
+        const isDemo = propId.startsWith('prop-') && parseInt(propId.replace('prop-', ''), 10) <= 10;
+        if (isDemo) {
+          return json(res, 403, { ok: false, error: 'Demo property IDs (prop-1 through prop-10) are reserved.' });
+        }
+
+        const db = getAdminDb(env);
+        if (!db) {
+          return json(res, 503, {
+            ok: false,
+            error: 'Firestore is not configured. Set KTK_FIREBASE_PROJECT_ID, KTK_FIREBASE_CLIENT_EMAIL, and KTK_FIREBASE_PRIVATE_KEY in .env file.'
+          });
+        }
+
+        // Rule 2: Check whether property ID already exists in Firestore. Never overwrite an existing property.
+        const existingDoc = await db.collection('properties').doc(propId).get();
+        if (existingDoc.exists) {
+          return json(res, 409, { ok: false, error: `Property with ID "${propId}" already exists.` });
+        }
+
+        const sanitized = sanitizePropertyInput(body);
+        if (!sanitized.title) {
+          return json(res, 400, { ok: false, error: 'Property title is required.' });
+        }
+
+        const newDocData = {
+          id: propId,
+          ...sanitized,
+          createdAt: body.createdAt || new Date().toISOString(),
+          _syncedAt: new Date().toISOString()
+        };
+
+        await db.collection('properties').doc(propId).set(newDocData);
+        return json(res, 200, { ok: true, id: propId });
+      }).catch(err => {
+        console.error('[KTK Local Admin] Create property error:', err.message);
+        return json(res, 500, { ok: false, error: 'Failed to create property in Firestore.' });
+      });
+      return;
+    }
+
+    // ── Admin: Update Property in Firestore (PUT) ────────────────────────────
+    const propPutMatch = url.match(/^\/api\/admin\/properties\/([^/]+)$/);
+    if (propPutMatch && req.method === 'PUT') {
+      const authHeader = req.headers.authorization || '';
+      const token = authHeader.replace(/^Bearer\s+/i, '').trim();
+      const session = decryptToken(token, secret);
+      if (!session || session.type !== 'session' || session.role !== 'ADMIN' || session.expiresAt <= Date.now()) {
+        return json(res, 401, { ok: false, error: 'Unauthorized.' });
+      }
+
+      const propId = propPutMatch[1].trim();
+
+      readBody(req).then(async body => {
+        if (!body || typeof body !== 'object') {
+          return json(res, 400, { ok: false, error: 'Invalid update payload.' });
+        }
+
+        const db = getAdminDb(env);
+        if (!db) {
+          return json(res, 503, {
+            ok: false,
+            error: 'Firestore is not configured. Set KTK_FIREBASE_PROJECT_ID, KTK_FIREBASE_CLIENT_EMAIL, and KTK_FIREBASE_PRIVATE_KEY in .env file.'
+          });
+        }
+
+        // Rule 3: Verify property exists in Firestore. Preserve immutable fields.
+        const docRef = db.collection('properties').doc(propId);
+        const existingDoc = await docRef.get();
+        if (!existingDoc.exists) {
+          return json(res, 404, { ok: false, error: `Property "${propId}" not found in Firestore.` });
+        }
+
+        const existingData = existingDoc.data();
+        const sanitizedUpdates = sanitizePropertyInput(body);
+
+        const updatedDocData = {
+          ...sanitizedUpdates,
+          id: propId,
+          createdAt: existingData.createdAt || body.createdAt || new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+          _syncedAt: new Date().toISOString()
+        };
+
+        await docRef.set(updatedDocData, { merge: true });
+        return json(res, 200, { ok: true, id: propId });
+      }).catch(err => {
+        console.error('[KTK Local Admin] Update property error:', err.message);
+        return json(res, 500, { ok: false, error: 'Failed to update property in Firestore.' });
+      });
+      return;
+    }
+
+    // ── Admin: Delete Property & Cascade Delete ImageKit Photos (DELETE) ─────
+    const propDelMatch = url.match(/^\/api\/admin\/properties\/([^/]+)$/);
+    if (propDelMatch && req.method === 'DELETE') {
+      const authHeader = req.headers.authorization || '';
+      const token = authHeader.replace(/^Bearer\s+/i, '').trim();
+      const session = decryptToken(token, secret);
+      if (!session || session.type !== 'session' || session.role !== 'ADMIN' || session.expiresAt <= Date.now()) {
+        return json(res, 401, { ok: false, error: 'Unauthorized.' });
+      }
+
+      const propId = propDelMatch[1].trim();
+
+      // Rule 4: Guard demo properties
+      const isDemo = propId.startsWith('prop-') && parseInt(propId.replace('prop-', ''), 10) <= 10;
+      if (isDemo) {
+        return json(res, 403, { ok: false, error: 'Demo properties (prop-1 through prop-10) are protected and cannot be deleted.' });
+      }
+
+      const db = getAdminDb(env);
+      if (!db) {
+        return json(res, 503, {
+          ok: false,
+          error: 'Firestore is not configured. Set KTK_FIREBASE_PROJECT_ID, KTK_FIREBASE_CLIENT_EMAIL, and KTK_FIREBASE_PRIVATE_KEY in .env file.'
+        });
+      }
+
+      try {
+        // Rule 4: Read property from Firestore
+        const propDocRef = db.collection('properties').doc(propId);
+        const propSnap = await propDocRef.get();
+        if (!propSnap.exists) {
+          return json(res, 404, { ok: false, error: `Property "${propId}" not found in Firestore.` });
+        }
+
+        const propData = propSnap.data();
+        // Rule 4: Use ONLY stored imageFiles metadata from Firestore. Never trust client-supplied fileIds.
+        const storedImageFiles = Array.isArray(propData.imageFiles) ? propData.imageFiles : [];
+        const privateKey = cleanEnv(env.KTK_IMAGEKIT_PRIVATE_KEY);
+
+        // Filter valid ImageKit files belonging to this property (exclude external / Unsplash URLs)
+        const targetImageFiles = storedImageFiles.filter(imgFile => {
+          const fileId = imgFile && (imgFile.fileId || imgFile.id);
+          return (
+            typeof fileId === 'string' &&
+            fileId.trim().length > 0 &&
+            (!imgFile.url || !imgFile.url.includes('unsplash.com'))
+          );
+        });
+
+        const deletedFiles = [];
+        const failedFiles = [];
+
+        if (targetImageFiles.length > 0) {
+          if (!privateKey) {
+            return json(res, 503, {
+              ok: false,
+              error: 'ImageKit private key is not configured. Cannot safely delete property photos. Property was retained in Firestore.'
+            });
+          }
+
+          for (const imgFile of targetImageFiles) {
+            const fileId = imgFile.fileId || imgFile.id;
+            const delRes = await deleteImageKitFile(fileId, privateKey);
+            if (delRes.success) {
+              deletedFiles.push(fileId);
+            } else {
+              failedFiles.push({ fileId, error: delRes.error || `Status ${delRes.status}` });
+            }
+          }
+        }
+
+        // Rule 4: If any ImageKit deletion fails, retain the Firestore property document and report the failed files clearly.
+        if (failedFiles.length > 0) {
+          console.warn(`[KTK Local Admin] Property "${propId}" deletion halted: ${failedFiles.length} photo(s) failed to delete.`);
+          return json(res, 502, {
+            ok: false,
+            error: 'Failed to delete one or more property photos from ImageKit. Property document was retained in Firestore.',
+            propId,
+            failedImages: failedFiles,
+            successfulDeletions: deletedFiles
+          });
+        }
+
+        // Rule 4: Delete the Firestore document ONLY after all associated ImageKit files are successfully deleted
+        await propDocRef.delete();
+        return json(res, 200, { ok: true, deleted: propId, deletedImages: deletedFiles });
+      } catch (err) {
+        console.error('[KTK Local Admin] Delete property error:', err.message);
+        return json(res, 500, { ok: false, error: 'Failed to delete property from Firestore.' });
+      }
     }
 
     next();

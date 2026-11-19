@@ -120,7 +120,15 @@ class AuthService {
    * Get current auth token
    */
   getToken() {
+    this._session = this._loadSession();
     return this._session ? this._session.token : null;
+  }
+
+  /**
+   * Get current session token (alias for getToken)
+   */
+  getSessionToken() {
+    return this.getToken();
   }
 
   /**

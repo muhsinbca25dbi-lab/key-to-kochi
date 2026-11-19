@@ -16,17 +16,21 @@ function cleanEnv(val) {
   return String(val).trim().replace(/^["']+|[",']+$/g, '').trim();
 }
 
+const metaEnv = (typeof import.meta !== 'undefined' && import.meta.env) ? import.meta.env : (typeof process !== 'undefined' && process.env ? process.env : {});
+
 const firebaseConfig = {
-  apiKey:            cleanEnv(import.meta.env.VITE_FIREBASE_API_KEY),
-  authDomain:        cleanEnv(import.meta.env.VITE_FIREBASE_AUTH_DOMAIN),
-  projectId:         cleanEnv(import.meta.env.VITE_FIREBASE_PROJECT_ID),
-  storageBucket:     cleanEnv(import.meta.env.VITE_FIREBASE_STORAGE_BUCKET),
-  messagingSenderId: cleanEnv(import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID),
-  appId:             cleanEnv(import.meta.env.VITE_FIREBASE_APP_ID)
+  apiKey:            cleanEnv(metaEnv.VITE_FIREBASE_API_KEY),
+  authDomain:        cleanEnv(metaEnv.VITE_FIREBASE_AUTH_DOMAIN),
+  projectId:         cleanEnv(metaEnv.VITE_FIREBASE_PROJECT_ID),
+  storageBucket:     cleanEnv(metaEnv.VITE_FIREBASE_STORAGE_BUCKET),
+  messagingSenderId: cleanEnv(metaEnv.VITE_FIREBASE_MESSAGING_SENDER_ID),
+  appId:             cleanEnv(metaEnv.VITE_FIREBASE_APP_ID)
 };
 
 let app = null;
 let db  = null;
+// Firebase Storage is decommissioned in favor of ImageKit direct uploads
+const storage = null;
 
 try {
   if (!firebaseConfig.projectId) {
@@ -40,10 +44,15 @@ try {
   console.warn('[KTK Firebase] Initialisation failed — running in localStorage-only mode.', e.message);
 }
 
-export { app, db };
+export { app, db, storage };
 
 /** Returns true if Firebase/Firestore is successfully initialised. */
 export function isFirebaseReady() {
   return db !== null;
+}
+
+/** Legacy Firebase Storage is disabled; always returns false. */
+export function isStorageReady() {
+  return false;
 }
 
