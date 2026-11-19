@@ -85,7 +85,7 @@ function checkDeepLinkProperty() {
       const prop = store.getPropertyById(propId);
       if (prop) {
         setTimeout(() => {
-          scrollToSection('search-section');
+          navigateToPage('properties', false);
           openPropertyModal(propId, (p) => openEnquiryModal(p), (p) => openScheduleVisitModal(p));
         }, 350);
       }
@@ -221,7 +221,7 @@ function renderPopularLocations() {
       const select = document.getElementById('filter-location');
       if (select) select.value = loc;
       renderPropertiesListing();
-      scrollToSection('search-section');
+      navigateToPage('properties', true);
     });
   });
 }
@@ -456,6 +456,17 @@ function attachPropertyCardEvents(container) {
    EVENT LISTENERS & BINDINGS
    ========================================================================== */
 function setupEventListeners() {
+  // Page Navigation Links (Desktop & Mobile)
+  document.querySelectorAll('[data-nav]').forEach(link => {
+    link.addEventListener('click', (e) => {
+      const targetPage = link.getAttribute('data-nav');
+      if (targetPage) {
+        e.preventDefault();
+        navigateToPage(targetPage, true);
+      }
+    });
+  });
+
   // 1. Hero Search Box
   const heroSearchBtn = document.getElementById('btn-hero-search');
   if (heroSearchBtn) {
@@ -475,7 +486,7 @@ function setupEventListeners() {
       // Sync with main filter controls
       syncMainFilterInputs();
       renderPropertiesListing();
-      scrollToSection('search-section');
+      navigateToPage('properties', true);
     });
   }
 
@@ -554,7 +565,7 @@ function setupEventListeners() {
         filterState.suitableFor = tenantCategory;
         syncMainFilterInputs();
         renderPropertiesListing();
-        scrollToSection('search-section');
+        navigateToPage('properties', true);
       }
     });
   });
@@ -567,7 +578,7 @@ function setupEventListeners() {
         filterState.suitableFor = tenantCategory;
         syncMainFilterInputs();
         renderPropertiesListing();
-        scrollToSection('search-section');
+        navigateToPage('properties', true);
       }
     });
   });
@@ -626,7 +637,7 @@ function setupEventListeners() {
       filterState.bhk = bhk;
       syncMainFilterInputs();
       renderPropertiesListing();
-      scrollToSection('search-section');
+      navigateToPage('properties', true);
     });
   });
 
@@ -637,7 +648,7 @@ function setupEventListeners() {
       filterState.furnishing = furnish;
       syncMainFilterInputs();
       renderPropertiesListing();
-      scrollToSection('search-section');
+      navigateToPage('properties', true);
     });
   });
 
@@ -648,7 +659,7 @@ function setupEventListeners() {
       filterState.location = loc;
       syncMainFilterInputs();
       renderPropertiesListing();
-      scrollToSection('search-section');
+      navigateToPage('properties', true);
     });
   });
 
@@ -808,6 +819,17 @@ function handleRouteChange() {
       if (floatingWA) floatingWA.style.display = '';
       document.body.style.overflow = '';
     }
+
+    // Public multi-page route dispatch
+    const hash = (window.location.hash || '').toLowerCase();
+    if (hash.startsWith('#prop-') || hash.startsWith('#property-')) {
+      navigateToPage('properties', false);
+      checkDeepLinkProperty();
+      return;
+    }
+
+    const targetPage = hash.replace(/^#/, '') || 'home';
+    navigateToPage(targetPage, false);
   }
 }
 
@@ -1011,11 +1033,87 @@ function syncMainFilterInputs() {
   if (searchInput) searchInput.value = filterState.searchQuery;
 }
 
-function scrollToSection(id) {
-  const el = document.getElementById(id);
-  if (el) {
-    el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+/* ==========================================================================
+   MULTI-PAGE NAVIGATION ROUTER
+   ========================================================================== */
+export const VALID_PAGES = ['home', 'lifestyle', 'properties', 'locations', 'browse-bhk', 'about', 'contact'];
+
+export function navigateToPage(targetPage, updateUrl = true) {
+  let pageId = (targetPage || 'home').toLowerCase().replace(/^#/, '').trim();
+
+  // Normalize legacy anchor IDs
+  if (!pageId || pageId === 'hero' || pageId === '/') pageId = 'home';
+  else if (pageId === 'lifestyle-section') pageId = 'lifestyle';
+  else if (pageId === 'search-section' || pageId === 'search') pageId = 'properties';
+  else if (pageId === 'locations-section') pageId = 'locations';
+  else if (pageId === 'bhk-section' || pageId === 'bhk' || pageId === 'furnishing-section') pageId = 'browse-bhk';
+  else if (pageId === 'why-us-section' || pageId === 'how-it-works' || pageId === 'about-us') pageId = 'about';
+  else if (pageId === 'contact-section') pageId = 'contact';
+
+  if (!VALID_PAGES.includes(pageId)) {
+    pageId = 'home';
   }
+
+  // 1. Toggle visibility of page-views
+  const pages = document.querySelectorAll('.page-view');
+  pages.forEach(p => {
+    if (p.getAttribute('data-page') === pageId) {
+      p.classList.add('active');
+    } else {
+      p.classList.remove('active');
+    }
+  });
+
+  // 2. Update active nav link indicators (Desktop & Mobile)
+  document.querySelectorAll('.nav-link[data-nav]').forEach(link => {
+    if (link.getAttribute('data-nav') === pageId) {
+      link.classList.add('active');
+    } else {
+      link.classList.remove('active');
+    }
+  });
+
+  document.querySelectorAll('.mobile-nav-link[data-nav]').forEach(link => {
+    if (link.getAttribute('data-nav') === pageId) {
+      link.classList.add('active');
+    } else {
+      link.classList.remove('active');
+    }
+  });
+
+  // 3. Scroll to top of window
+  window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
+
+  // 4. Update browser URL hash if requested
+  if (updateUrl) {
+    const newHash = pageId === 'home' ? '#home' : `#${pageId}`;
+    if (window.location.hash !== newHash) {
+      window.location.hash = newHash;
+    }
+  }
+
+  // 5. Trigger resize for Three.js canvas when returning to home
+  if (pageId === 'home') {
+    window.dispatchEvent(new Event('resize'));
+  }
+}
+
+function scrollToSection(id) {
+  const pageMap = {
+    'hero': 'home',
+    'featured-section': 'home',
+    'lifestyle-section': 'lifestyle',
+    'search-section': 'properties',
+    'locations-section': 'locations',
+    'bhk-section': 'browse-bhk',
+    'furnishing-section': 'browse-bhk',
+    'why-us-section': 'about',
+    'how-it-works': 'about',
+    'list-property-cta': 'about',
+    'contact-section': 'contact'
+  };
+  const targetPage = pageMap[id] || 'home';
+  navigateToPage(targetPage, true);
 }
 
 /* ==========================================================================

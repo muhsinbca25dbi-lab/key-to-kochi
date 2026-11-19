@@ -16,7 +16,7 @@
     <!-- Sticky Navigation -->
     <header class="site-header" id="site-header">
       <div class="nav-container">
-        <a href="#hero" class="brand-logo" id="nav-brand-logo">
+        <a href="#home" class="brand-logo" id="nav-brand-logo" data-nav="home">
           <div class="brand-key-icon">
             <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
               <circle cx="7.5" cy="15.5" r="5.5"/>
@@ -32,19 +32,19 @@
 
         <!-- Center Menu -->
         <nav class="nav-links">
-          <a href="#hero" class="nav-link active">Home</a>
-          <a href="#lifestyle-section" class="nav-link">Lifestyle</a>
-          <a href="#search-section" class="nav-link">Properties</a>
-          <a href="#locations-section" class="nav-link">Locations</a>
-          <a href="#bhk-section" class="nav-link">Browse BHK</a>
-          <a href="#why-us-section" class="nav-link">About</a>
+          <a href="#home" class="nav-link active" data-nav="home">Home</a>
+          <a href="#lifestyle" class="nav-link" data-nav="lifestyle">Lifestyle</a>
+          <a href="#properties" class="nav-link" data-nav="properties">Properties</a>
+          <a href="#locations" class="nav-link" data-nav="locations">Locations</a>
+          <a href="#browse-bhk" class="nav-link" data-nav="browse-bhk">Browse BHK</a>
+          <a href="#about" class="nav-link" data-nav="about">About</a>
           <a href="javascript:void(0)" class="nav-link" id="nav-list-property">List Property</a>
-          <a href="#contact-section" class="nav-link">Contact</a>
+          <a href="#contact" class="nav-link" data-nav="contact">Contact</a>
         </nav>
 
         <!-- Right Action Buttons -->
         <div class="nav-actions">
-          <a href="#search-section" class="btn-gold-nav" id="btn-nav-find-home">Find a Home</a>
+          <a href="#properties" class="btn-gold-nav" id="btn-nav-find-home" data-nav="properties">Find a Home</a>
         </div>
 
         <!-- Mobile Menu Toggle -->
@@ -55,22 +55,26 @@
 
       <!-- Mobile Dropdown -->
       <div class="mobile-menu-drawer" id="mobile-menu-drawer">
-        <a href="#hero" class="mobile-nav-link">Home</a>
-        <a href="#lifestyle-section" class="mobile-nav-link">Lifestyle (Tenant Types)</a>
-        <a href="#search-section" class="mobile-nav-link">Properties</a>
-        <a href="#locations-section" class="mobile-nav-link">Locations</a>
-        <a href="#bhk-section" class="mobile-nav-link">Browse BHK</a>
-        <a href="#why-us-section" class="mobile-nav-link">About</a>
+        <a href="#home" class="mobile-nav-link active" data-nav="home">Home</a>
+        <a href="#lifestyle" class="mobile-nav-link" data-nav="lifestyle">Lifestyle</a>
+        <a href="#properties" class="mobile-nav-link" data-nav="properties">Properties</a>
+        <a href="#locations" class="mobile-nav-link" data-nav="locations">Locations</a>
+        <a href="#browse-bhk" class="mobile-nav-link" data-nav="browse-bhk">Browse BHK</a>
+        <a href="#about" class="mobile-nav-link" data-nav="about">About</a>
         <a href="javascript:void(0)" class="mobile-nav-link" id="mobile-nav-list-prop">List Property</a>
-        <a href="#contact-section" class="mobile-nav-link">Contact</a>
+        <a href="#contact" class="mobile-nav-link" data-nav="contact">Contact</a>
         <div class="mobile-menu-actions">
-          <a href="#search-section" class="btn-gold-full">Find a Home</a>
+          <a href="#properties" class="btn-gold-full" data-nav="properties">Find a Home</a>
         </div>
       </div>
     </header>
 
-    <!-- Hero Section with 3D Background -->
-    <section class="hero-section" id="hero">
+    <!-- Main Multi-Page App Content -->
+    <main id="main-content">
+      <!-- 1. Home Page View -->
+      <div class="page-view active" id="page-home" data-page="home">
+        <!-- Hero Section with 3D Background -->
+        <section class="hero-section" id="hero">
       <!-- Three.js Canvas Container -->
       <div class="hero-3d-container" id="hero-canvas-container"></div>
       
@@ -186,24 +190,27 @@
       </div>
     </section>
 
-    <!-- Featured Properties Section -->
-    <section class="section-container featured-section" id="featured-section">
-      <div class="section-header-flex">
-        <div>
-          <span class="section-tag-gold">HANDPICKED CURATION</span>
-          <h2 class="section-title">Featured Luxury Residencies</h2>
-          <p class="section-subtitle">Specially inspected high-demand apartments and villas in prime Cochin hubs.</p>
+      <!-- Featured Properties Section -->
+      <section class="section-container featured-section" id="featured-section">
+        <div class="section-header-flex">
+          <div>
+            <span class="section-tag-gold">HANDPICKED CURATION</span>
+            <h2 class="section-title">Featured Luxury Residencies</h2>
+            <p class="section-subtitle">Specially inspected high-demand apartments and villas in prime Cochin hubs.</p>
+          </div>
+          <a href="#properties" class="btn-outline-gold" data-nav="properties">View Full Inventory &rarr;</a>
         </div>
-        <a href="#search-section" class="btn-outline-gold">View Full Inventory &rarr;</a>
-      </div>
 
-      <div class="featured-cards-grid" id="featured-cards-container">
-        <!-- Rendered dynamically -->
-      </div>
-    </section>
+        <div class="featured-cards-grid" id="featured-cards-container">
+          <!-- Rendered dynamically -->
+        </div>
+      </section>
+    </div>
 
-    <!-- Lifestyle / Tenant Suitability Section -->
-    <section class="section-container lifestyle-section" id="lifestyle-section">
+    <!-- 2. Lifestyle Page View -->
+    <div class="page-view" id="page-lifestyle" data-page="lifestyle">
+      <!-- Lifestyle / Tenant Suitability Section -->
+      <section class="section-container lifestyle-section" id="lifestyle-section">
       <div class="section-header-centered">
         <span class="section-tag-gold">TENANT CATEGORIES</span>
         <h2 class="section-title">Find a Home That Fits Your Lifestyle</h2>
@@ -275,7 +282,10 @@
         </div>
       </div>
     </section>
+  </div>
 
+  <!-- 3. Properties Page View -->
+  <div class="page-view" id="page-properties" data-page="properties">
     <!-- Main Property Search & Listing Section -->
     <section class="section-container search-listing-section" id="search-section">
       <div class="section-header-centered">
@@ -410,7 +420,10 @@
         <!-- Rendered dynamically -->
       </div>
     </section>
+  </div>
 
+  <!-- 4. Locations Page View -->
+  <div class="page-view" id="page-locations" data-page="locations">
     <!-- Popular Locations Section -->
     <section class="section-container locations-section" id="locations-section">
       <div class="section-header-centered">
@@ -423,7 +436,10 @@
         <!-- Rendered dynamically from store -->
       </div>
     </section>
+  </div>
 
+  <!-- 5. Browse BHK Page View -->
+  <div class="page-view" id="page-browse-bhk" data-page="browse-bhk">
     <!-- Browse by BHK Section -->
     <section class="section-container bhk-section" id="bhk-section">
       <div class="section-header-centered">
@@ -515,7 +531,10 @@
         </div>
       </div>
     </section>
+  </div>
 
+  <!-- 6. About Page View -->
+  <div class="page-view" id="page-about" data-page="about">
     <!-- Why Key to Kochi Section -->
     <section class="section-container why-us-section" id="why-us-section">
       <div class="section-header-centered">
@@ -604,14 +623,17 @@
             List Your Property Now &rarr;
           </button>
         </div>
-        <div class="banner-image-side">
-          <img src="https://images.unsplash.com/photo-1600585154340-be6161a56a0c?auto=format&fit=crop&w=800&q=80" alt="Luxury Kochi Living Room" />
+          <div class="banner-image-side">
+            <img src="https://images.unsplash.com/photo-1600585154340-be6161a56a0c?auto=format&fit=crop&w=800&q=80" alt="Luxury Kochi Living Room" />
+          </div>
         </div>
-      </div>
-    </section>
+      </section>
+    </div>
 
-    <!-- Contact & Consultation Section -->
-    <section class="section-container contact-section" id="contact-section">
+    <!-- 7. Contact Page View -->
+    <div class="page-view" id="page-contact" data-page="contact">
+      <!-- Contact & Consultation Section -->
+      <section class="section-container contact-section" id="contact-section">
       <div class="contact-card-glass">
         <div class="contact-info-col">
           <span class="section-tag-gold">GET IN TOUCH</span>
@@ -685,6 +707,8 @@
         </div>
       </div>
     </section>
+  </div>
+</main>
 
     <!-- Luxury Footer -->
     <footer class="site-footer">
@@ -716,11 +740,11 @@
           <div class="footer-links-col">
             <h4>Quick Navigation</h4>
             <ul>
-              <li><a href="#hero">Home</a></li>
-              <li><a href="#search-section">Browse Properties</a></li>
-              <li><a href="#locations-section">Kochi Locations</a></li>
-              <li><a href="#bhk-section">Browse by BHK</a></li>
-              <li><a href="#furnishing-section">Furnishing Types</a></li>
+              <li><a href="#home" data-nav="home">Home</a></li>
+              <li><a href="#properties" data-nav="properties">Browse Properties</a></li>
+              <li><a href="#locations" data-nav="locations">Kochi Locations</a></li>
+              <li><a href="#browse-bhk" data-nav="browse-bhk">Browse by BHK</a></li>
+              <li><a href="#browse-bhk" data-nav="browse-bhk">Furnishing Types</a></li>
               <li><a href="javascript:void(0)" id="footer-list-prop-link">List Your Property</a></li>
             </ul>
           </div>

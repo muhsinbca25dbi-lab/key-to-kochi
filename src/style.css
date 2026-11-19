@@ -92,6 +92,41 @@ a {
   overflow-x: clip;
 }
 
+/* ==========================================================================
+   MULTI-PAGE VIEW ARCHITECTURE
+   ========================================================================== */
+
+#main-content {
+  width: 100%;
+  min-height: calc(100vh - 80px);
+}
+
+.page-view {
+  display: none;
+  width: 100%;
+  min-height: calc(100vh - 120px);
+}
+
+.page-view.active {
+  display: block;
+  animation: pageViewFadeIn 0.22s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+.page-view .section-container + .section-container {
+  padding-top: 20px;
+}
+
+@keyframes pageViewFadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
 img, picture, video {
   max-width: 100%;
   height: auto;
