@@ -10,7 +10,7 @@
   <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@500;600;700;800&family=Outfit:wght@300;400;500;600;700;800&family=Plus+Jakarta+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="/src/style.css" />
 </head>
-<body class="dark-theme">
+<body>
   <!-- Public Website Wrapper -->
   <div id="public-app-root">
     <!-- Sticky Navigation -->
@@ -33,7 +33,6 @@
         <!-- Center Menu -->
         <nav class="nav-links">
           <a href="#home" class="nav-link active" data-nav="home">Home</a>
-          <a href="#lifestyle" class="nav-link" data-nav="lifestyle">Lifestyle</a>
           <a href="#properties" class="nav-link" data-nav="properties">Properties</a>
           <a href="#locations" class="nav-link" data-nav="locations">Locations</a>
           <a href="#browse-bhk" class="nav-link" data-nav="browse-bhk">Browse BHK</a>
@@ -56,7 +55,6 @@
       <!-- Mobile Dropdown -->
       <div class="mobile-menu-drawer" id="mobile-menu-drawer">
         <a href="#home" class="mobile-nav-link active" data-nav="home">Home</a>
-        <a href="#lifestyle" class="mobile-nav-link" data-nav="lifestyle">Lifestyle</a>
         <a href="#properties" class="mobile-nav-link" data-nav="properties">Properties</a>
         <a href="#locations" class="mobile-nav-link" data-nav="locations">Locations</a>
         <a href="#browse-bhk" class="mobile-nav-link" data-nav="browse-bhk">Browse BHK</a>
@@ -75,13 +73,6 @@
       <div class="page-view active" id="page-home" data-page="home">
         <!-- Hero Section with 3D Background -->
         <section class="hero-section" id="hero">
-      <!-- Three.js Canvas Container -->
-      <div class="hero-3d-container" id="hero-canvas-container"></div>
-      
-      <!-- Gradient Overlays for High Legibility -->
-      <div class="hero-radial-vignette"></div>
-      <div class="hero-bottom-gradient"></div>
-
       <div class="hero-content-wrapper">
         <div class="hero-badge-pill">
           <span class="gold-sparkle">✦</span>
@@ -207,85 +198,8 @@
       </section>
     </div>
 
-    <!-- 2. Lifestyle Page View -->
-    <div class="page-view" id="page-lifestyle" data-page="lifestyle">
-      <!-- Lifestyle / Tenant Suitability Section -->
-      <section class="section-container lifestyle-section" id="lifestyle-section">
-      <div class="section-header-centered">
-        <span class="section-tag-gold">TENANT CATEGORIES</span>
-        <h2 class="section-title">Find a Home That Fits Your Lifestyle</h2>
-        <p class="section-subtitle">Dedicated rental options tailored for every stage of living in Cochin.</p>
-      </div>
-
-      <div class="lifestyle-cards-grid">
-        <!-- Family Card -->
-        <div class="lifestyle-card" data-tenant="Family">
-          <div class="lifestyle-card-icon-wrap">
-            <span class="lifestyle-card-emoji">👨‍👩‍👧</span>
-            <span class="lifestyle-badge">Family Friendly</span>
-          </div>
-          <h3 class="lifestyle-card-title">Family</h3>
-          <p class="lifestyle-card-quote">“Comfortable homes for your family.”</p>
-          <ul class="lifestyle-features-list">
-            <li><span class="check-bullet">✓</span> Spacious living areas & multiple bedrooms</li>
-            <li><span class="check-bullet">✓</span> Family-oriented, tranquil neighborhoods</li>
-            <li><span class="check-bullet">✓</span> Dedicated car parking availability</li>
-            <li><span class="check-bullet">✓</span> Nearby reputed schools & multispeciality hospitals</li>
-          </ul>
-          <div class="lifestyle-card-cta">
-            <button class="btn-lifestyle-action" data-tenant="Family" id="btn-lifestyle-family">
-              View Family Homes &rarr;
-            </button>
-          </div>
-        </div>
-
-        <!-- Bachelors Card -->
-        <div class="lifestyle-card" data-tenant="Bachelors">
-          <div class="lifestyle-card-icon-wrap">
-            <span class="lifestyle-card-emoji">👤</span>
-            <span class="lifestyle-badge">Bachelor Friendly</span>
-          </div>
-          <h3 class="lifestyle-card-title">Bachelors</h3>
-          <p class="lifestyle-card-quote">“Convenient rentals for working professionals and students.”</p>
-          <ul class="lifestyle-features-list">
-            <li><span class="check-bullet">✓</span> Suitable for working professionals & students</li>
-            <li><span class="check-bullet">✓</span> Easy access to metro & public transport</li>
-            <li><span class="check-bullet">✓</span> Close to Infopark, SmartCity & colleges</li>
-            <li><span class="check-bullet">✓</span> High-speed connectivity & flexible lease terms</li>
-          </ul>
-          <div class="lifestyle-card-cta">
-            <button class="btn-lifestyle-action" data-tenant="Bachelors" id="btn-lifestyle-bachelors">
-              View Bachelor Homes &rarr;
-            </button>
-          </div>
-        </div>
-
-        <!-- Couples Card -->
-        <div class="lifestyle-card" data-tenant="Couples">
-          <div class="lifestyle-card-icon-wrap">
-            <span class="lifestyle-card-emoji">❤️</span>
-            <span class="lifestyle-badge">Couple Friendly</span>
-          </div>
-          <h3 class="lifestyle-card-title">Couples</h3>
-          <p class="lifestyle-card-quote">“Comfortable and private homes for couples.”</p>
-          <ul class="lifestyle-features-list">
-            <li><span class="check-bullet">✓</span> Suitable for newly-wed & working couples</li>
-            <li><span class="check-bullet">✓</span> Privacy-focused gated properties</li>
-            <li><span class="check-bullet">✓</span> Convenient prime residential locations</li>
-            <li><span class="check-bullet">✓</span> Modern modular kitchens & scenic balconies</li>
-          </ul>
-          <div class="lifestyle-card-cta">
-            <button class="btn-lifestyle-action" data-tenant="Couples" id="btn-lifestyle-couples">
-              View Couple Homes &rarr;
-            </button>
-          </div>
-        </div>
-      </div>
-    </section>
-  </div>
-
-  <!-- 3. Properties Page View -->
-  <div class="page-view" id="page-properties" data-page="properties">
+    <!-- 2. Properties Page View -->
+    <div class="page-view" id="page-properties" data-page="properties">
     <!-- Main Property Search & Listing Section -->
     <section class="section-container search-listing-section" id="search-section">
       <div class="section-header-centered">
@@ -422,7 +336,7 @@
     </section>
   </div>
 
-  <!-- 4. Locations Page View -->
+  <!-- 3. Locations Page View -->
   <div class="page-view" id="page-locations" data-page="locations">
     <!-- Popular Locations Section -->
     <section class="section-container locations-section" id="locations-section">
@@ -438,7 +352,7 @@
     </section>
   </div>
 
-  <!-- 5. Browse BHK Page View -->
+  <!-- 4. Browse BHK Page View -->
   <div class="page-view" id="page-browse-bhk" data-page="browse-bhk">
     <!-- Browse by BHK Section -->
     <section class="section-container bhk-section" id="bhk-section">
@@ -533,7 +447,7 @@
     </section>
   </div>
 
-  <!-- 6. About Page View -->
+  <!-- 5. About Page View -->
   <div class="page-view" id="page-about" data-page="about">
     <!-- Why Key to Kochi Section -->
     <section class="section-container why-us-section" id="why-us-section">
@@ -630,7 +544,7 @@
       </section>
     </div>
 
-    <!-- 7. Contact Page View -->
+    <!-- 6. Contact Page View -->
     <div class="page-view" id="page-contact" data-page="contact">
       <!-- Contact & Consultation Section -->
       <section class="section-container contact-section" id="contact-section">

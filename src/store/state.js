@@ -282,13 +282,19 @@ class Store {
   }
 
   getPropertyById(id) {
-    return this.state.properties.find(p => p.id === id);
+    if (!id) return null;
+    const cleanId = String(id).trim();
+    return this.state.properties.find(p =>
+      p.id === cleanId ||
+      p.id === `prop-${cleanId}` ||
+      p.id.replace(/^prop-/, '') === cleanId.replace(/^prop-/, '')
+    );
   }
 
   addProperty(propertyData) {
+    const nowIso = new Date().toISOString();
     const newProp = {
       id: 'prop-' + Date.now(),
-      createdAt: new Date().toISOString(),
       published: propertyData.published !== undefined ? propertyData.published : true,
       availability: propertyData.availability || 'Available',
       featured: !!propertyData.featured,
@@ -299,7 +305,8 @@ class Store {
       suitableFor: propertyData.suitableFor && propertyData.suitableFor.length > 0 
         ? propertyData.suitableFor 
         : ['Family', 'Couples'],
-      ...propertyData
+      ...propertyData,
+      createdAt: (propertyData && propertyData.createdAt) || nowIso
     };
 
     this.state.properties.unshift(newProp);
@@ -312,9 +319,12 @@ class Store {
     const index = this.state.properties.findIndex(p => p.id === id);
     if (index === -1) return null;
 
+    const existingProp = this.state.properties[index];
     this.state.properties[index] = {
-      ...this.state.properties[index],
+      ...existingProp,
       ...updateData,
+      // Strictly preserve original creation timestamp when editing
+      createdAt: existingProp.createdAt || (updateData && updateData.createdAt) || new Date().toISOString(),
       updatedAt: new Date().toISOString()
     };
 

@@ -1,11 +1,11 @@
 import { store } from './store/state.js';
-import { initThreeScene } from './components/threeScene.js';
 import { openPropertyModal } from './components/propertyModal.js';
 import { openEnquiryModal, openScheduleVisitModal, showToastNotification } from './components/actionModals.js';
 import { openListPropertyModal } from './components/listPropertyModal.js';
 import { AdminPortal } from './components/adminPortal.js';
 import { AdminLoginScreen } from './components/adminLoginScreen.js';
 import { authService } from './services/authService.js';
+import { getPropertyWhatsAppUrl } from './services/whatsappService.js';
 
 // Application State for Public Filters
 const filterState = {
@@ -27,16 +27,10 @@ let adminPortalInstance = null;
 let currentLoginScreen = null;
 
 document.addEventListener('DOMContentLoaded', () => {
-  // 1. Initialize 3D Hero Scene
-  const heroContainer = document.getElementById('hero-canvas-container');
-  if (heroContainer) {
-    initThreeScene(heroContainer);
-  }
-
-  // 2. Setup Sticky Navbar Scroll Effect
+  // 1. Setup Sticky Navbar Scroll Effect
   setupNavbarScroll();
 
-  // 3. Populate Dynamic Location Dropdowns
+  // 2. Populate Dynamic Location Dropdowns
   populateLocationDropdowns();
 
   // 4. Render All Public Sections
@@ -57,6 +51,7 @@ document.addEventListener('DOMContentLoaded', () => {
     renderPropertiesListing();
     renderFeaturedProperties();
     renderPopularLocations();
+    checkDeepLinkProperty();
   });
 
   // 8. Admin Routing & Deep-Linking Guard
@@ -64,7 +59,12 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // 9. Check for Property Alert Deep-Link (?prop=prop-xxx or #property-xxx)
   checkDeepLinkProperty();
+
+  // 10. Start dynamic time badge ticker for property cards
+  startTimeBadgeInterval();
 });
+
+let deepLinkHandledHash = null;
 
 function checkDeepLinkProperty() {
   try {
@@ -73,22 +73,35 @@ function checkDeepLinkProperty() {
 
     if (!propId && window.location.hash) {
       const hash = window.location.hash;
-      const match = hash.match(/^#(?:property-|prop-)(.+)$/);
+      const match = hash.match(/^#(?:property-|prop-)(.+)$/i);
       if (match) {
-        propId = match[1].startsWith('prop-') ? match[1] : `prop-${match[1]}`;
-      } else if (hash.startsWith('#prop-')) {
-        propId = hash.slice(1);
+        propId = match[1];
       }
     }
 
-    if (propId) {
+    if (!propId) return;
+
+    // Reset handled key if navigating to a different property
+    const currentHashKey = `${window.location.hash || ''}_${propId}`;
+    if (deepLinkHandledHash === currentHashKey) return;
+
+    const tryOpen = () => {
       const prop = store.getPropertyById(propId);
       if (prop) {
+        deepLinkHandledHash = currentHashKey;
         setTimeout(() => {
           navigateToPage('properties', false);
-          openPropertyModal(propId, (p) => openEnquiryModal(p), (p) => openScheduleVisitModal(p));
-        }, 350);
+          openPropertyModal(prop.id, (p) => openEnquiryModal(p), (p) => openScheduleVisitModal(p));
+        }, 200);
+        return true;
       }
+      return false;
+    };
+
+    if (!tryOpen()) {
+      // In case properties are still initializing or fetching from Firestore
+      setTimeout(() => { tryOpen(); }, 400);
+      setTimeout(() => { tryOpen(); }, 1200);
     }
   } catch (err) {
     console.warn('[KTK] Deep link parsing failed:', err);
@@ -200,10 +213,10 @@ function renderPopularLocations() {
   const locations = store.getLocations();
   const stats = store.getStats();
 
-  container.innerHTML = locations.slice(0, 8).map(loc => {
+  container.innerHTML = locations.map((loc, idx) => {
     const count = stats.locationStats[loc.name] || 0;
     return `
-      <div class="location-tile-card" data-location="${loc.name}">
+      <div class="location-tile-card" data-location="${loc.name}" style="--card-index: ${idx};">
         <img src="${loc.image}" alt="${loc.name}" loading="lazy" />
         <div class="location-tile-overlay">
           <h3 class="loc-tile-title">${loc.name}</h3>
@@ -344,12 +357,124 @@ function renderPropertiesListing() {
   attachPropertyCardEvents(container);
 }
 
+/**
+ * Safely parse a property's publication or creation date.
+ * Supports ISO strings, timestamps, Firestore Timestamp objects, or numeric property IDs.
+ */
+export function getPropertyPublishedDate(property) {
+  if (!property) return null;
+  const raw = property.publishedAt || property.createdAt;
+  if (!raw) {
+    // Graceful fallback: check if property.id has timestamp (prop-<digits>)
+    const match = String(property.id || '').match(/^prop-(\d{10,})$/);
+    if (match) {
+      const num = parseInt(match[1], 10);
+      if (!isNaN(num) && num > 0) return new Date(num);
+    }
+    return null;
+  }
+  if (typeof raw === 'object') {
+    if (typeof raw.toDate === 'function') {
+      try {
+        const d = raw.toDate();
+        if (d instanceof Date && !isNaN(d.getTime())) return d;
+      } catch (_) {}
+    }
+    if (typeof raw.seconds === 'number') {
+      const d = new Date(raw.seconds * 1000);
+      if (!isNaN(d.getTime())) return d;
+    }
+  }
+  const d = new Date(raw);
+  return !isNaN(d.getTime()) ? d : null;
+}
+
+/**
+ * Format relative time elapsed since property publication.
+ * Examples: Just now, 5 minutes ago, 18 hours ago, 2 days ago, 1 week ago, 1 month ago.
+ */
+export function formatTimeAgo(timestamp, now = new Date()) {
+  if (!timestamp) return '';
+  const date = timestamp instanceof Date ? timestamp : new Date(timestamp);
+  if (isNaN(date.getTime())) return '';
+
+  const nowDate = now instanceof Date ? now : new Date(now);
+  const diffMs = Math.max(0, nowDate.getTime() - date.getTime());
+  const diffSec = Math.floor(diffMs / 1000);
+  const diffMin = Math.floor(diffSec / 60);
+  const diffHours = Math.floor(diffMin / 60);
+  const diffDays = Math.floor(diffHours / 24);
+  const diffWeeks = Math.floor(diffDays / 7);
+  const diffMonths = Math.floor(diffDays / 30);
+  const diffYears = Math.floor(diffDays / 365);
+
+  if (diffSec < 45) {
+    return 'Just now';
+  }
+  if (diffMin < 60) {
+    return diffMin <= 1 ? '1 minute ago' : `${diffMin} minutes ago`;
+  }
+  if (diffHours < 24) {
+    return diffHours === 1 ? '1 hour ago' : `${diffHours} hours ago`;
+  }
+  if (diffDays < 7) {
+    return diffDays === 1 ? '1 day ago' : `${diffDays} days ago`;
+  }
+  if (diffDays < 30) {
+    return diffWeeks <= 1 ? '1 week ago' : `${diffWeeks} weeks ago`;
+  }
+  if (diffDays < 365) {
+    return diffMonths <= 1 ? '1 month ago' : `${diffMonths} months ago`;
+  }
+  return diffYears <= 1 ? '1 year ago' : `${diffYears} years ago`;
+}
+
+/**
+ * Live updater for property card time badges
+ */
+export function updateAllTimeBadges() {
+  const badges = document.querySelectorAll('.prop-card-time-badge[data-published-at]');
+  if (!badges || badges.length === 0) return;
+  const now = new Date();
+  badges.forEach(badge => {
+    const iso = badge.getAttribute('data-published-at');
+    if (!iso) return;
+    const textEl = badge.querySelector('.time-badge-text');
+    if (textEl) {
+      const newText = formatTimeAgo(iso, now);
+      if (newText && textEl.textContent !== newText) {
+        textEl.textContent = newText;
+      }
+    }
+  });
+}
+
+let timeBadgeTimer = null;
+export function startTimeBadgeInterval() {
+  if (timeBadgeTimer) clearInterval(timeBadgeTimer);
+  timeBadgeTimer = setInterval(updateAllTimeBadges, 30000);
+}
+
 function createPropertyCardHtml(property, isFeaturedBadge = false) {
   const isAvailable = property.availability === 'Available';
   const coverImg = property.images && property.images.length > 0 ? property.images[0] : 'https://images.unsplash.com/photo-1545324418-cc1a3fa10c00?auto=format&fit=crop&w=1200&q=80';
 
-  const cardWhatsAppMsg = encodeURIComponent(`Hello Key to Kochi, I am interested in the ${property.title} in ${property.location}. Please provide more details.`);
-  const cardWhatsAppUrl = `https://wa.me/919656959652?text=${cardWhatsAppMsg}`;
+  const cardWhatsAppUrl = getPropertyWhatsAppUrl(property);
+
+  const pubDate = getPropertyPublishedDate(property);
+  const timeAgoText = pubDate ? formatTimeAgo(pubDate) : '';
+  const timeAgoIso = pubDate ? pubDate.toISOString() : '';
+  const fullDateTitle = pubDate ? `Published: ${pubDate.toLocaleString('en-IN', { dateStyle: 'medium', timeStyle: 'short' })}` : '';
+
+  const timeBadgeHtml = timeAgoText ? `
+    <span class="prop-card-time-badge" data-published-at="${timeAgoIso}" title="${fullDateTitle}">
+      <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+        <circle cx="12" cy="12" r="10"></circle>
+        <polyline points="12 6 12 12 16 14"></polyline>
+      </svg>
+      <span class="time-badge-text">${timeAgoText}</span>
+    </span>
+  ` : '';
 
   return `
     <article class="property-card" data-id="${property.id}">
@@ -362,6 +487,7 @@ function createPropertyCardHtml(property, isFeaturedBadge = false) {
           </span>
         </div>
         <div class="prop-card-furnish-tag">${property.furnishing}</div>
+        ${timeBadgeHtml}
       </div>
 
       <div class="prop-card-body">
@@ -554,34 +680,6 @@ function setupEventListeners() {
       renderPropertiesListing();
     });
   }
-
-  // Lifestyle Section Cards / CTAs (Find a Home That Fits Your Lifestyle)
-  document.querySelectorAll('.btn-lifestyle-action').forEach(btn => {
-    btn.addEventListener('click', (e) => {
-      e.preventDefault();
-      e.stopPropagation();
-      const tenantCategory = btn.getAttribute('data-tenant');
-      if (tenantCategory) {
-        filterState.suitableFor = tenantCategory;
-        syncMainFilterInputs();
-        renderPropertiesListing();
-        navigateToPage('properties', true);
-      }
-    });
-  });
-
-  document.querySelectorAll('.lifestyle-card').forEach(card => {
-    card.addEventListener('click', (e) => {
-      if (e.target.closest('.btn-lifestyle-action')) return;
-      const tenantCategory = card.getAttribute('data-tenant');
-      if (tenantCategory) {
-        filterState.suitableFor = tenantCategory;
-        syncMainFilterInputs();
-        renderPropertiesListing();
-        navigateToPage('properties', true);
-      }
-    });
-  });
 
   // Drawer Toggle
   const toggleDrawerBtn = document.getElementById('btn-toggle-amenities');
@@ -945,6 +1043,8 @@ function exitAdminPortal(isLogout = false) {
     window.location.hash = '';
   }
 
+  populateLocationDropdowns();
+  renderPopularLocations();
   renderPropertiesListing();
   renderFeaturedProperties();
 }
@@ -1036,14 +1136,14 @@ function syncMainFilterInputs() {
 /* ==========================================================================
    MULTI-PAGE NAVIGATION ROUTER
    ========================================================================== */
-export const VALID_PAGES = ['home', 'lifestyle', 'properties', 'locations', 'browse-bhk', 'about', 'contact'];
+export const VALID_PAGES = ['home', 'properties', 'locations', 'browse-bhk', 'about', 'contact'];
 
 export function navigateToPage(targetPage, updateUrl = true) {
   let pageId = (targetPage || 'home').toLowerCase().replace(/^#/, '').trim();
 
   // Normalize legacy anchor IDs
   if (!pageId || pageId === 'hero' || pageId === '/') pageId = 'home';
-  else if (pageId === 'lifestyle-section') pageId = 'lifestyle';
+  else if (pageId === 'lifestyle-section' || pageId === 'lifestyle') pageId = 'properties';
   else if (pageId === 'search-section' || pageId === 'search') pageId = 'properties';
   else if (pageId === 'locations-section') pageId = 'locations';
   else if (pageId === 'bhk-section' || pageId === 'bhk' || pageId === 'furnishing-section') pageId = 'browse-bhk';
@@ -1092,9 +1192,9 @@ export function navigateToPage(targetPage, updateUrl = true) {
     }
   }
 
-  // 5. Trigger resize for Three.js canvas when returning to home
-  if (pageId === 'home') {
-    window.dispatchEvent(new Event('resize'));
+  // 5. Refresh view-specific dynamic data
+  if (pageId === 'locations') {
+    renderPopularLocations();
   }
 }
 
@@ -1102,7 +1202,7 @@ function scrollToSection(id) {
   const pageMap = {
     'hero': 'home',
     'featured-section': 'home',
-    'lifestyle-section': 'lifestyle',
+    'lifestyle-section': 'properties',
     'search-section': 'properties',
     'locations-section': 'locations',
     'bhk-section': 'browse-bhk',

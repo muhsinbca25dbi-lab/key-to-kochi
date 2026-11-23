@@ -1,5 +1,6 @@
 import { store } from '../store/state.js';
 import { TENANT_TYPE_CONFIG } from '../data/initialData.js';
+import { getPropertyWhatsAppUrl } from '../services/whatsappService.js';
 
 export function openPropertyModal(propertyId, onEnquiryOpen, onScheduleOpen) {
   const property = store.getPropertyById(propertyId);
@@ -7,6 +8,13 @@ export function openPropertyModal(propertyId, onEnquiryOpen, onScheduleOpen) {
 
   const modalContainer = document.getElementById('property-modal-container');
   if (!modalContainer) return;
+
+  // Sync address bar hash with property deep-link
+  const cleanId = String(property.id || '').trim();
+  const propHash = cleanId.startsWith('prop-') ? `#${cleanId}` : `#prop-${cleanId}`;
+  if (window.location.hash !== propHash && !window.location.hash.includes('admin')) {
+    window.history.replaceState(null, '', propHash);
+  }
 
   let currentImageIdx = 0;
   const images = property.images && property.images.length > 0 ? property.images : ['https://images.unsplash.com/photo-1545324418-cc1a3fa10c00?auto=format&fit=crop&w=1200&q=80'];
@@ -28,8 +36,7 @@ export function openPropertyModal(propertyId, onEnquiryOpen, onScheduleOpen) {
   ];
 
   const propFacilities = property.facilities || [];
-  const whatsappPropMsg = encodeURIComponent(`Hello Key to Kochi, I am interested in the ${property.title} in ${property.location}. Please provide more details.`);
-  const whatsappPropUrl = `https://wa.me/919656959652?text=${whatsappPropMsg}`;
+  const whatsappPropUrl = getPropertyWhatsAppUrl(property);
 
   modalContainer.innerHTML = `
     <div class="property-modal-backdrop" id="prop-modal-backdrop">
@@ -228,10 +235,15 @@ export function openPropertyModal(propertyId, onEnquiryOpen, onScheduleOpen) {
                     Schedule Physical Visit
                   </button>
 
-                  <button class="btn-dark-glass-lg" id="btn-modal-contact-owner">
+                  <a
+                    href="tel:+919656959652"
+                    class="btn-dark-glass-lg"
+                    id="btn-modal-contact-owner"
+                    title="Call Property Manager: +91 96569 59652"
+                  >
                     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/></svg>
-                    Contact Property Manager
-                  </button>
+                    <span>Contact Property Manager</span>
+                  </a>
                 </div>
 
                 <!-- Verified Security Badge -->
@@ -278,6 +290,9 @@ export function openPropertyModal(propertyId, onEnquiryOpen, onScheduleOpen) {
   const closeModal = () => {
     modalContainer.innerHTML = '';
     document.body.style.overflow = '';
+    if (window.location.hash.startsWith('#prop-') || window.location.hash.startsWith('#property-')) {
+      window.history.replaceState(null, '', '#properties');
+    }
   };
 
   document.body.style.overflow = 'hidden';
@@ -312,8 +327,14 @@ export function openPropertyModal(propertyId, onEnquiryOpen, onScheduleOpen) {
   const contactOwnerBtn = modalContainer.querySelector('#btn-modal-contact-owner');
   if (contactOwnerBtn) {
     contactOwnerBtn.addEventListener('click', () => {
-      const owner = property.owner || { name: 'Kochi Key Desk', phone: '+91 98471 22890', email: 'hello@keytokochi.com' };
-      alert(`Property Manager: ${owner.name}\nDirect Phone: ${owner.phone}\nEmail: ${owner.email}\nOffice: Panampilly Nagar, Kochi`);
+      const managerPhoneFormatted = '+91 96569 59652';
+      const managerName = (property.owner && property.owner.name) ? property.owner.name : 'Kochi Key Desk';
+      const managerEmail = (property.owner && property.owner.email) ? property.owner.email : 'hello@keytokochi.com';
+      const isMobile = /Android|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) || (window.matchMedia && window.matchMedia('(max-width: 768px)').matches);
+
+      if (!isMobile) {
+        alert(`Property Manager: ${managerName}\nDirect Phone: ${managerPhoneFormatted}\nEmail: ${managerEmail}\nOffice: Panampilly Nagar, Kochi`);
+      }
     });
   }
 }

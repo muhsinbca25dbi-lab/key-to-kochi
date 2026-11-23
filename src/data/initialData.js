@@ -65,7 +65,7 @@ export const INITIAL_PROPERTIES = [
     ],
     description: 'Designed specifically for IT professionals and modern couples, this aesthetic 1 BHK apartment offers high-speed Wi-Fi, ergonomic work desk, imported recliner, modular German kitchen, and uninterrupted power backup. Located just 3 minutes from Infopark South Gate with stunning open green views.',
     facilities: ['Parking', 'Wi-Fi', 'AC', 'Lift', 'Security', 'Water Supply', 'Power Backup', 'Attached Bathroom', 'Kitchen', 'Balcony', 'Gym'],
-    owner: { name: 'Mathew Varghese', phone: '+91 98471 22890', email: 'mathew.varghese@keytokochi.com' },
+    owner: { name: 'Mathew Varghese', phone: '+91 96569 59652', email: 'mathew.varghese@keytokochi.com' },
     createdAt: '2026-09-15T10:00:00.000Z'
   },
   {

@@ -366,7 +366,7 @@ export class AdminPortal {
             <div class="kpi-data">
               <span class="kpi-label">Tenant Enquiries</span>
               <span class="kpi-value text-blue">${stats.totalEnquiries}</span>
-              <span class="kpi-hint">${stats.unreadEnquiries > 0 ? `<strong style="color: #f7df94;">${stats.unreadEnquiries} Unread</strong> • ` : ''}${stats.newEnquiries} awaiting contact</span>
+              <span class="kpi-hint">${stats.unreadEnquiries > 0 ? `<strong style="color: #2563EB;">${stats.unreadEnquiries} Unread</strong> • ` : ''}${stats.newEnquiries} awaiting contact</span>
             </div>
           </div>
         </div>
@@ -1987,16 +1987,16 @@ export class AdminPortal {
             <tbody>
               ${this.subscribersLoading && !this.subscribersLoaded ? `
                 <tr>
-                  <td colspan="5" style="text-align: center; padding: 50px; color: var(--color-text-muted);">
-                    <div class="aln-spinner" style="display: inline-block; width: 28px; height: 28px; border: 2px solid rgba(212,175,55,0.2); border-top-color: var(--color-gold-metallic); border-radius: 50%; margin-bottom: 12px;"></div>
+                  <td colspan="5" style="text-align: center; padding: 50px; color: var(--text-muted);">
+                    <div class="aln-spinner" style="display: inline-block; width: 28px; height: 28px; border: 2px solid rgba(37,99,235,0.2); border-top-color: var(--blue-primary); border-radius: 50%; margin-bottom: 12px;"></div>
                     <div>Loading registered subscribers from Cloud Firestore...</div>
                   </td>
                 </tr>
               ` : subscribers.length === 0 ? `
                 <tr>
-                  <td colspan="5" style="text-align: center; padding: 48px; color: var(--color-text-muted);">
+                  <td colspan="5" style="text-align: center; padding: 48px; color: var(--text-muted);">
                     <div style="font-size: 2rem; margin-bottom: 8px;">📬</div>
-                    <strong style="color: var(--color-text-light);">No subscribers found</strong>
+                    <strong style="color: var(--text-main);">No subscribers found</strong>
                     <p class="text-xs text-muted" style="margin-top: 4px;">
                       ${this.subscriberSearchQuery ? 'No subscriber emails matched your search term.' : 'Website visitors who join the Exclusive Property Alerts newsletter will appear here.'}
                     </p>
@@ -2004,10 +2004,10 @@ export class AdminPortal {
                 </tr>
               ` : subscribers.map((s, idx) => `
                 <tr class="subscriber-table-row">
-                  <td style="color: var(--color-text-muted); font-size: 0.85rem;">${idx + 1}</td>
+                  <td style="color: var(--text-muted); font-size: 0.85rem;">${idx + 1}</td>
                   <td>
                     <div style="display: flex; align-items: center; gap: 8px;">
-                      <strong style="color: #f8fafc; font-size: 0.95rem;">${s.email}</strong>
+                      <strong class="subscriber-email-text" style="color: #172033; font-size: 0.95rem; font-weight: 600;">${s.email}</strong>
                     </div>
                   </td>
                   <td>

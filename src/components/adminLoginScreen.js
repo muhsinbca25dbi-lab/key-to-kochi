@@ -32,11 +32,6 @@ export class AdminLoginScreen {
 
   mount() {
     this._renderHTML();
-    try {
-      this._initThreeScene();
-    } catch (err) {
-      console.warn('Three.js background initialization bypassed:', err);
-    }
     document.addEventListener('keydown', this._boundKeydown);
     document.body.style.overflow = 'hidden';
   }
@@ -728,7 +723,7 @@ export class AdminLoginScreen {
   }
 
   _getOtpSubtitleHTML() {
-    return `Enter the 6-digit verification code sent to <strong style="color:#d4af37">${this._maskedEmail}</strong>`;
+    return `Enter the 6-digit verification code sent to <strong style="color:#2563EB">${this._maskedEmail}</strong>`;
   }
 
   async _handleSubmit() {
