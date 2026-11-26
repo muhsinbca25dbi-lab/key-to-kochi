@@ -1,4 +1,4 @@
-import { store } from './store/state.js';
+import { store, getPropertyTimestamp } from './store/state.js';
 import { openPropertyModal } from './components/propertyModal.js';
 import { openEnquiryModal, openScheduleVisitModal, showToastNotification } from './components/actionModals.js';
 import { openListPropertyModal } from './components/listPropertyModal.js';
@@ -20,7 +20,7 @@ const filterState = {
   maxRent: Infinity,
   minSize: 0,
   amenities: [],
-  sort: 'featured'
+  sort: 'newest'
 };
 
 let adminPortalInstance = null;
@@ -304,16 +304,28 @@ function renderPropertiesListing() {
     });
   }
 
-  // Sort
+  // Sort (Default: newest first by publishedAt / createdAt timestamp descending)
   if (filterState.sort === 'price-asc') {
-    properties.sort((a, b) => a.rent - b.rent);
+    properties.sort((a, b) => {
+      const pDiff = (a.rent || 0) - (b.rent || 0);
+      if (pDiff !== 0) return pDiff;
+      return getPropertyTimestamp(b) - getPropertyTimestamp(a);
+    });
   } else if (filterState.sort === 'price-desc') {
-    properties.sort((a, b) => b.rent - a.rent);
-  } else if (filterState.sort === 'newest') {
-    properties.sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0));
+    properties.sort((a, b) => {
+      const pDiff = (b.rent || 0) - (a.rent || 0);
+      if (pDiff !== 0) return pDiff;
+      return getPropertyTimestamp(b) - getPropertyTimestamp(a);
+    });
+  } else if (filterState.sort === 'featured') {
+    properties.sort((a, b) => {
+      const featDiff = (b.featured ? 1 : 0) - (a.featured ? 1 : 0);
+      if (featDiff !== 0) return featDiff;
+      return getPropertyTimestamp(b) - getPropertyTimestamp(a);
+    });
   } else {
-    // featured first
-    properties.sort((a, b) => (b.featured ? 1 : 0) - (a.featured ? 1 : 0));
+    // 'newest' (or default): newest published/created timestamp descending
+    properties.sort((a, b) => getPropertyTimestamp(b) - getPropertyTimestamp(a));
   }
 
   // Update count ribbon
@@ -1109,7 +1121,7 @@ function resetAllFilters() {
   filterState.maxRent = Infinity;
   filterState.minSize = 0;
   filterState.amenities = [];
-  filterState.sort = 'featured';
+  filterState.sort = 'newest';
 
   syncMainFilterInputs();
   renderPropertiesListing();
@@ -1122,6 +1134,7 @@ function syncMainFilterInputs() {
   const bhkSelect = document.getElementById('filter-bhk');
   const furnSelect = document.getElementById('filter-furnishing');
   const availSelect = document.getElementById('filter-availability');
+  const sortSelect = document.getElementById('filter-sort');
   const searchInput = document.getElementById('live-search-query');
 
   if (locSelect) locSelect.value = filterState.location;
@@ -1130,6 +1143,7 @@ function syncMainFilterInputs() {
   if (bhkSelect) bhkSelect.value = filterState.bhk;
   if (furnSelect) furnSelect.value = filterState.furnishing;
   if (availSelect) availSelect.value = filterState.availability;
+  if (sortSelect) sortSelect.value = filterState.sort;
   if (searchInput) searchInput.value = filterState.searchQuery;
 }
 
@@ -1239,3 +1253,5 @@ function animateCounters() {
     update();
   });
 }
+
+export { getPropertyTimestamp };

@@ -45,7 +45,22 @@ export async function getProperties() {
       query(collection(db, 'properties'), where('published', '==', true))
     );
     const properties = snap.docs.map(d => ({ id: d.id, ...d.data() }));
-    return properties.sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0));
+    const parseTs = (prop) => {
+      if (!prop) return 0;
+      const raw = prop.publishedAt || prop.createdAt;
+      if (!raw) return 0;
+      if (typeof raw === 'object') {
+        if (typeof raw.toDate === 'function') {
+          try { const d = raw.toDate(); if (d instanceof Date && !isNaN(d.getTime())) return d.getTime(); } catch (_) {}
+        }
+        if (typeof raw.seconds === 'number') return raw.seconds * 1000;
+        if (typeof raw._seconds === 'number') return raw._seconds * 1000;
+      }
+      if (typeof raw === 'number' && !isNaN(raw)) return raw;
+      const t = Date.parse(raw);
+      return !isNaN(t) ? t : 0;
+    };
+    return properties.sort((a, b) => parseTs(b) - parseTs(a));
   } catch (e) {
     console.warn('[KTK Firestore] getProperties failed:', e.message);
     return [];

@@ -16,6 +16,51 @@ async function getFirestoreService() {
   return _firestoreService;
 }
 
+/**
+ * Safely extract the numeric timestamp (milliseconds since epoch) from a property's
+ * Firestore publishedAt or createdAt timestamp field.
+ * Handles:
+ * - Firestore Timestamp instances with .toDate()
+ * - Plain Firestore Timestamp objects { seconds, nanoseconds } or { _seconds, _nanoseconds }
+ * - ISO date strings ('2026-10-04T12:00:00.000Z')
+ * - Direct epoch millisecond numbers
+ * - Gracefully returns 0 if missing/invalid so older un-timestamped properties
+ *   stay safely below newer properties without breaking.
+ */
+export function getPropertyTimestamp(property) {
+  if (!property) return 0;
+  const raw = property.publishedAt || property.createdAt;
+  if (!raw) return 0;
+
+  if (typeof raw === 'object') {
+    if (typeof raw.toDate === 'function') {
+      try {
+        const d = raw.toDate();
+        if (d instanceof Date && !isNaN(d.getTime())) return d.getTime();
+      } catch (_) {}
+    }
+    if (typeof raw.seconds === 'number') {
+      return raw.seconds * 1000 + Math.floor((raw.nanoseconds || 0) / 1000000);
+    }
+    if (typeof raw._seconds === 'number') {
+      return raw._seconds * 1000 + Math.floor((raw._nanoseconds || 0) / 1000000);
+    }
+  }
+
+  if (typeof raw === 'number' && !isNaN(raw)) {
+    return raw;
+  }
+
+  if (typeof raw === 'string') {
+    const t = Date.parse(raw);
+    if (!isNaN(t)) return t;
+  }
+
+  const d = new Date(raw);
+  const t = d.getTime();
+  return !isNaN(t) ? t : 0;
+}
+
 class Store {
   constructor() {
     this.subscribers = new Set();
@@ -60,7 +105,7 @@ class Store {
             return { ...p, suitableFor: ['Family', 'Couples'] };
           }
           return p;
-        });
+        }).sort((a, b) => getPropertyTimestamp(b) - getPropertyTimestamp(a));
         changed = true;
       }
 
@@ -196,7 +241,7 @@ class Store {
               return { ...p, suitableFor: ['Family', 'Couples'] };
             }
             return p;
-          });
+          }).sort((a, b) => getPropertyTimestamp(b) - getPropertyTimestamp(a));
 
           // Ensure all enquiries have valid isRead boolean
           if (parsed.enquiries && Array.isArray(parsed.enquiries)) {
@@ -231,7 +276,7 @@ class Store {
     }
 
     const defaultState = {
-      properties: INITIAL_PROPERTIES,
+      properties: [...INITIAL_PROPERTIES].sort((a, b) => getPropertyTimestamp(b) - getPropertyTimestamp(a)),
       locations: INITIAL_LOCATIONS,
       enquiries: INITIAL_ENQUIRIES,
       submissions: INITIAL_OWNER_SUBMISSIONS,
@@ -271,14 +316,15 @@ class Store {
 
   // --- PROPERTIES ---
   getProperties(includeDrafts = false) {
-    if (includeDrafts) {
-      return [...this.state.properties];
+    let list = this.state.properties;
+    if (!includeDrafts) {
+      list = list.filter(p => p.published !== false);
     }
-    return this.state.properties.filter(p => p.published !== false);
+    return [...list].sort((a, b) => getPropertyTimestamp(b) - getPropertyTimestamp(a));
   }
 
   getAllProperties() {
-    return [...this.state.properties];
+    return [...this.state.properties].sort((a, b) => getPropertyTimestamp(b) - getPropertyTimestamp(a));
   }
 
   getPropertyById(id) {
@@ -306,10 +352,12 @@ class Store {
         ? propertyData.suitableFor 
         : ['Family', 'Couples'],
       ...propertyData,
-      createdAt: (propertyData && propertyData.createdAt) || nowIso
+      createdAt: (propertyData && (propertyData.createdAt || propertyData.publishedAt)) || nowIso,
+      publishedAt: (propertyData && propertyData.publishedAt) || (propertyData.published !== false ? nowIso : null)
     };
 
     this.state.properties.unshift(newProp);
+    this.state.properties.sort((a, b) => getPropertyTimestamp(b) - getPropertyTimestamp(a));
     this.notify('PROPERTY_ADDED', newProp);
     this._adminSync('POST', '/api/admin/properties', newProp);
     return newProp;
@@ -320,15 +368,20 @@ class Store {
     if (index === -1) return null;
 
     const existingProp = this.state.properties[index];
+    const nowIso = new Date().toISOString();
+    const isNowPublished = updateData && updateData.published !== undefined ? updateData.published : existingProp.published;
+
     this.state.properties[index] = {
       ...existingProp,
       ...updateData,
       // Strictly preserve original creation timestamp when editing
-      createdAt: existingProp.createdAt || (updateData && updateData.createdAt) || new Date().toISOString(),
-      updatedAt: new Date().toISOString()
+      createdAt: existingProp.createdAt || (updateData && updateData.createdAt) || nowIso,
+      publishedAt: existingProp.publishedAt || (updateData && updateData.publishedAt) || (isNowPublished ? (existingProp.createdAt || nowIso) : null),
+      updatedAt: nowIso
     };
 
-    const updated = this.state.properties[index];
+    this.state.properties.sort((a, b) => getPropertyTimestamp(b) - getPropertyTimestamp(a));
+    const updated = this.state.properties.find(p => p.id === id) || this.state.properties[index];
     this.notify('PROPERTY_UPDATED', updated);
     this._adminSync('PUT', `/api/admin/properties/${id}`, updated);
     return updated;
@@ -355,7 +408,11 @@ class Store {
     const prop = this.getPropertyById(id);
     if (!prop) return null;
     const newPublished = !prop.published;
-    return this.updateProperty(id, { published: newPublished });
+    const update = { published: newPublished };
+    if (newPublished && !prop.publishedAt) {
+      update.publishedAt = new Date().toISOString();
+    }
+    return this.updateProperty(id, update);
   }
 
   // --- ENQUIRIES ---
