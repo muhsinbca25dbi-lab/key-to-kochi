@@ -889,6 +889,16 @@ button, input, select, textarea {
    PROPERTY SEARCH & ADVANCED FILTERS
    ========================================================================== */
 
+#page-properties .search-listing-section {
+  padding-top: 28px;
+}
+
+@media (max-width: 768px) {
+  #page-properties .search-listing-section {
+    padding-top: 18px;
+  }
+}
+
 .advanced-filter-card {
   background: var(--bg-card);
   border: 1px solid var(--border-card);
@@ -1372,6 +1382,138 @@ button, input, select, textarea {
 
 .btn-card-whatsapp:hover span {
   color: #FFFFFF;
+}
+
+/* ==========================================================================
+   HOW TO USE KEY TO KOCHI / HOW TO FIND YOUR HOME SECTION
+   ========================================================================== */
+.how-to-use-section {
+  padding: 80px 24px 60px;
+}
+
+.guide-steps-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 24px;
+  margin-top: 44px;
+}
+
+.guide-step-card {
+  background: #FFFFFF;
+  border: 1px solid #D5E3F5;
+  border-radius: var(--radius-lg);
+  padding: 32px 24px;
+  box-shadow: 0 4px 20px -2px rgba(18, 59, 112, 0.06), 0 2px 6px -1px rgba(18, 59, 112, 0.04);
+  display: flex;
+  flex-direction: column;
+  position: relative;
+  transition: transform 0.3s cubic-bezier(0.16, 1, 0.3, 1), border-color 0.3s ease, box-shadow 0.3s ease;
+  animation: guideCardFadeUp 0.6s cubic-bezier(0.16, 1, 0.3, 1) both;
+  animation-delay: calc(var(--step-index, 0) * 0.1s);
+}
+
+.guide-step-card:hover {
+  transform: translateY(-6px);
+  border-color: #2563EB;
+  box-shadow: 0 14px 32px -4px rgba(37, 99, 235, 0.14), 0 4px 12px -2px rgba(18, 59, 112, 0.06);
+}
+
+.guide-step-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 22px;
+}
+
+.guide-step-number {
+  font-family: var(--font-heading);
+  font-size: 1.6rem;
+  font-weight: 800;
+  color: #94A3B8;
+  letter-spacing: -0.02em;
+  transition: color 0.3s ease;
+}
+
+.guide-step-card:hover .guide-step-number {
+  color: #2563EB;
+}
+
+.guide-icon-wrapper {
+  width: 50px;
+  height: 50px;
+  border-radius: 12px;
+  background: #EFF6FF;
+  border: 1px solid #BFDBFE;
+  color: #2563EB;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  transition: background-color 0.25s ease, transform 0.25s ease, color 0.25s ease, border-color 0.25s ease;
+}
+
+.guide-step-card:hover .guide-icon-wrapper {
+  background: #2563EB;
+  color: #FFFFFF;
+  border-color: #2563EB;
+  transform: scale(1.08);
+}
+
+.guide-step-title {
+  font-family: var(--font-heading);
+  font-size: 1.22rem;
+  font-weight: 700;
+  color: #123B70;
+  margin-bottom: 12px;
+  line-height: 1.35;
+}
+
+.guide-step-desc {
+  font-size: 0.92rem;
+  color: #64748B;
+  line-height: 1.6;
+  margin: 0;
+}
+
+@keyframes guideCardFadeUp {
+  0% {
+    opacity: 0;
+    transform: translateY(22px);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .guide-step-card {
+    animation: none !important;
+  }
+}
+
+@media (max-width: 1024px) {
+  .guide-steps-grid {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 20px;
+  }
+}
+
+@media (max-width: 640px) {
+  .how-to-use-section {
+    padding: 50px 16px 40px;
+  }
+  .guide-steps-grid {
+    grid-template-columns: 1fr;
+    gap: 16px;
+    margin-top: 32px;
+  }
+  .guide-step-card {
+    padding: 24px 20px;
+  }
+  .guide-step-title {
+    font-size: 1.15rem;
+  }
 }
 
 /* Featured Section Grid */

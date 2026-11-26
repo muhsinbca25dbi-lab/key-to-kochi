@@ -1202,6 +1202,8 @@ function scrollToSection(id) {
   const pageMap = {
     'hero': 'home',
     'featured-section': 'home',
+    'how-to-find-home-section': 'home',
+    'how-to-use-section': 'home',
     'lifestyle-section': 'properties',
     'search-section': 'properties',
     'locations-section': 'locations',
